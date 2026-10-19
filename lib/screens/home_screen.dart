@@ -110,8 +110,10 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     if (_group != null && !groups.contains(_group)) _group = null;
     final servers = _filter(store.servers);
 
-    // 首頁看得到時才輪詢；關閉「即時監控」時只在手動重新整理時更新。
-    final wanted = live && !_covered
+    // 首頁看得到時才輪詢（被其他頁面蓋住、或切到底部導覽的其他分頁時暫停）；
+    // 關閉「即時監控」時只在手動重新整理時更新。
+    final visible = Visibility.of(context);
+    final wanted = live && !_covered && visible
         ? {for (final server in store.servers) server.id}
         : <String>{};
     WidgetsBinding.instance.addPostFrameCallback((_) {

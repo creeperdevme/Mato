@@ -102,6 +102,9 @@ const _psOutput = '''
 class _ScreenSsh extends SSHService {
   int _round = 0;
 
+  /// 已經抓取過幾次監控指標。
+  int get fetchCount => _round;
+
   @override
   Future<ServerMetrics> fetchMetrics(
     ServerProfile profile, {
@@ -396,6 +399,30 @@ const _sizes = {'phone': Size(390, 844), 'desktop': Size(1366, 900)};
 void main() {
   setUpAll(() async {
     if (_shotsDir != null) await _loadFonts();
+  });
+
+  testWidgets('切到其他分頁時首頁停止輪詢，切回來再恢復', (tester) async {
+    final harness = _Harness();
+    await tester.runAsync(harness.init);
+    await tester.pumpWidget(harness.wrap(const RootShell()));
+    await _settle(tester);
+    expect(harness.ssh.fetchCount, greaterThan(0));
+
+    await tester.tap(find.text('設定').last);
+    await _settle(tester);
+    final paused = harness.ssh.fetchCount;
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(seconds: 5));
+    }
+    expect(harness.ssh.fetchCount, paused);
+
+    await tester.tap(find.text('伺服器').last);
+    await _settle(tester);
+    await tester.pump(const Duration(seconds: 5));
+    expect(harness.ssh.fetchCount, greaterThan(paused));
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 1));
   });
 
   for (final entry in _sizes.entries) {
