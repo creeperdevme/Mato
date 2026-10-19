@@ -1,0 +1,366 @@
+name: Nightly
+
+# 每天自動建置所有平台，並更新固定的 `nightly` release（下載連結不會變）。
+# 排程觸發時若 main 沒有新提交就略過；手動觸發則一律重新建置。
+on:
+  schedule:
+    # 每天台灣時間 03:23（UTC 19:23）
+    - cron: '23 19 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: '3.47.7'
+
+jobs:
+  prepare:
+    name: 檢查是否需要建置
+    runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.check.outputs.build }}
+      version: ${{ steps.meta.outputs.version }}
+      build_number: ${{ steps.meta.outputs.build_number }}
+      short_sha: ${{ steps.meta.outputs.short_sha }}
+      date: ${{ steps.meta.outputs.date }}
+      dart_defines: ${{ steps.meta.outputs.dart_defines }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - id: check
+        name: 比對目前 nightly 對應的提交
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          current="$(git rev-parse HEAD)"
+          previous="$(gh api "repos/${GITHUB_REPOSITORY}/commits/nightly" --jq .sha 2>/dev/null || true)"
+          if [ "${GITHUB_EVENT_NAME}" = "schedule" ] && [ "$current" = "$previous" ]; then
+            echo "build=false" >> "$GITHUB_OUTPUT"
+            echo "nightly 已經是最新的 \`${current:0:7}\`，略過建置。" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - id: meta
+        name: 版本資訊
+        run: |
+          version="$(sed -n 's/^version:[[:space:]]*\([0-9.]*\).*/\1/p' pubspec.yaml)"
+          short_sha="$(git rev-parse --short=7 HEAD)"
+          date="$(TZ=Asia/Taipei date +%Y-%m-%d)"
+          {
+            echo "version=${version}"
+            # Android 的 versionCode 必須遞增，才能直接覆蓋安裝較舊的 nightly。
+            echo "build_number=${GITHUB_RUN_NUMBER}"
+            echo "short_sha=${short_sha}"
+            echo "date=${date}"
+            echo "dart_defines=--dart-define=MATO_VERSION=${version} --dart-define=MATO_CHANNEL=nightly --dart-define=MATO_COMMIT=${GITHUB_SHA} --dart-define=MATO_BUILD_DATE=${date}"
+          } >> "$GITHUB_OUTPUT"
+
+  test:
+    name: 靜態分析與測試
+    needs: prepare
+    if: needs.prepare.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+          pub-cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+  android:
+    name: Android
+    needs: [prepare, test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+          pub-cache: true
+
+      # 沒有設定正式簽章時，重複使用同一把 debug 金鑰，
+      # 讓新版 nightly 可以直接覆蓋安裝舊版。
+      - name: 還原 debug 簽章金鑰
+        uses: actions/cache@v6
+        with:
+          path: ~/.android/debug.keystore
+          key: android-debug-keystore-v1
+
+      - name: 設定正式簽章（若有設定 secrets）
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "未設定 ANDROID_KEYSTORE_BASE64，使用 debug 簽章。"
+            exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/release.jks
+          cat > android/key.properties <<EOF
+          storeFile=release.jks
+          storePassword=${KEYSTORE_PASSWORD}
+          keyAlias=${KEY_ALIAS}
+          keyPassword=${KEY_PASSWORD}
+          EOF
+
+      - name: 限制 Gradle 記憶體
+        run: |
+          mkdir -p ~/.gradle
+          echo "org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -XX:+HeapDumpOnOutOfMemoryError" >> ~/.gradle/gradle.properties
+
+      - run: flutter pub get
+      - name: 建置 APK
+        run: >-
+          flutter build apk --release --split-per-abi
+          --build-name=${{ needs.prepare.outputs.version }}
+          --build-number=${{ needs.prepare.outputs.build_number }}
+          ${{ needs.prepare.outputs.dart_defines }}
+      - name: 整理檔案
+        run: |
+          mkdir -p dist
+          for abi in arm64-v8a armeabi-v7a x86_64; do
+            cp "build/app/outputs/flutter-apk/app-${abi}-release.apk" "dist/Mato-android-${abi}.apk"
+          done
+      - uses: actions/upload-artifact@v7
+        with:
+          name: android
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  linux:
+    name: Linux
+    needs: [prepare, test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - name: 安裝建置相依套件
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev libsecret-1-dev
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+          pub-cache: true
+      - run: flutter pub get
+      - name: 建置 Linux
+        run: >-
+          flutter build linux --release
+          --build-name=${{ needs.prepare.outputs.version }}
+          --build-number=${{ needs.prepare.outputs.build_number }}
+          ${{ needs.prepare.outputs.dart_defines }}
+      - name: 打包
+        run: |
+          mkdir -p dist
+          tar -czf dist/Mato-linux-x64.tar.gz -C build/linux/x64/release/bundle .
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  windows:
+    name: Windows
+    needs: [prepare, test]
+    runs-on: windows-latest
+    timeout-minutes: 45
+    # PowerShell 會把含 `.` 的原生指令參數拆開，建置指令改用 bash。
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+          pub-cache: true
+      - run: flutter pub get
+      - name: 建置 Windows
+        run: >-
+          flutter build windows --release
+          --build-name=${{ needs.prepare.outputs.version }}
+          --build-number=${{ needs.prepare.outputs.build_number }}
+          ${{ needs.prepare.outputs.dart_defines }}
+      - name: 打包
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath dist/Mato-windows-x64.zip
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  apple:
+    name: macOS 與 iOS
+    needs: [prepare, test]
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+          pub-cache: true
+      - run: flutter pub get
+      - name: 建置 macOS
+        run: >-
+          flutter build macos --release
+          --build-name=${{ needs.prepare.outputs.version }}
+          --build-number=${{ needs.prepare.outputs.build_number }}
+          ${{ needs.prepare.outputs.dart_defines }}
+      - name: 建置 iOS（未簽章）
+        run: >-
+          flutter build ios --release --no-codesign
+          --build-name=${{ needs.prepare.outputs.version }}
+          --build-number=${{ needs.prepare.outputs.build_number }}
+          ${{ needs.prepare.outputs.dart_defines }}
+      - name: 打包
+        run: |
+          mkdir -p dist
+          ditto -c -k --sequesterRsrc --keepParent build/macos/Build/Products/Release/Mato.app dist/Mato-macos.zip
+          mkdir -p Payload
+          cp -R build/ios/iphoneos/Runner.app Payload/
+          zip -qry dist/Mato-ios-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v7
+        with:
+          name: apple
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: 更新 nightly release
+    needs: [prepare, test, android, linux, windows, apple]
+    # 某個平台失敗時仍發布其他平台，並在說明中標示。
+    if: ${{ !cancelled() && needs.prepare.outputs.build == 'true' && needs.test.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      # 某個平台這次建置失敗時，沿用上一版的檔案，讓固定的下載連結不會失效。
+      - name: 沿用上一版的檔案
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p dist
+          : > carried.txt
+          for name in Mato-android-arm64-v8a.apk Mato-android-armeabi-v7a.apk Mato-android-x86_64.apk \
+                      Mato-windows-x64.zip Mato-macos.zip Mato-linux-x64.tar.gz Mato-ios-unsigned.ipa; do
+            if [ ! -f "dist/$name" ] && gh release download nightly --pattern "$name" --dir dist 2>/dev/null; then
+              echo "$name" >> carried.txt
+            fi
+          done
+          cat carried.txt
+          if [ -z "$(ls -A dist)" ]; then
+            echo "::error::沒有任何可發布的檔案"
+            exit 1
+          fi
+
+      - name: 產生說明
+        env:
+          SHORT_SHA: ${{ needs.prepare.outputs.short_sha }}
+          DATE: ${{ needs.prepare.outputs.date }}
+          ANDROID: ${{ needs.android.result }}
+          LINUX: ${{ needs.linux.result }}
+          WINDOWS: ${{ needs.windows.result }}
+          APPLE: ${{ needs.apple.result }}
+        run: |
+          # $1：job 結果；$2：該平台的其中一個檔名。
+          status() {
+            if [ "$1" = "success" ]; then
+              echo "✅"
+            elif grep -qx "$2" carried.txt; then
+              echo "⚠️ 本次建置失敗，沿用上一版"
+            else
+              echo "❌ 建置失敗"
+            fi
+          }
+          previous="$(git rev-list -n 1 nightly 2>/dev/null || true)"
+          if [ -n "$previous" ] && git merge-base --is-ancestor "$previous" HEAD; then
+            range="${previous}..HEAD"
+          else
+            range="-n 20"
+          fi
+          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/nightly"
+          {
+            echo "自動建置的 nightly 版本：\`${SHORT_SHA}\`（${DATE}）。"
+            echo "main 有新提交時每天自動更新，下方下載連結固定不變。"
+            echo
+            echo "| 平台 | 下載 | 狀態 |"
+            echo "|---|---|---|"
+            echo "| Android（多數手機） | [Mato-android-arm64-v8a.apk](${base}/Mato-android-arm64-v8a.apk) | $(status "$ANDROID" Mato-android-arm64-v8a.apk) |"
+            echo "| Android（32 位元／模擬器） | [armeabi-v7a](${base}/Mato-android-armeabi-v7a.apk) · [x86_64](${base}/Mato-android-x86_64.apk) | $(status "$ANDROID" Mato-android-x86_64.apk) |"
+            echo "| Windows | [Mato-windows-x64.zip](${base}/Mato-windows-x64.zip) | $(status "$WINDOWS" Mato-windows-x64.zip) |"
+            echo "| macOS | [Mato-macos.zip](${base}/Mato-macos.zip) | $(status "$APPLE" Mato-macos.zip) |"
+            echo "| Linux | [Mato-linux-x64.tar.gz](${base}/Mato-linux-x64.tar.gz) | $(status "$LINUX" Mato-linux-x64.tar.gz) |"
+            echo "| iOS（未簽章） | [Mato-ios-unsigned.ipa](${base}/Mato-ios-unsigned.ipa) | $(status "$APPLE" Mato-ios-unsigned.ipa) |"
+            echo
+            echo "- macOS 版未經公證，第一次開啟請在 App 上按右鍵 › 開啟。"
+            echo "- iOS 版未簽章，需要用 AltStore、SideStore 或自己的憑證重新簽署後安裝。"
+            echo "- Linux 版需要系統有 \`libsecret-1-0\` 與 \`libgtk-3-0\`。"
+            echo
+            echo "### 這次包含的變更"
+            # shellcheck disable=SC2086
+            git log --no-merges --pretty='- %s (%h)' $range | head -n 50
+          } > notes.md
+          (cd dist && sha256sum * > SHA256SUMS.txt)
+          ls -la dist
+          cat notes.md
+
+      - name: 發布
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHORT_SHA: ${{ needs.prepare.outputs.short_sha }}
+          DATE: ${{ needs.prepare.outputs.date }}
+        run: |
+          # 刪掉舊的 release 與 tag，再以同樣的 tag 重新建立，讓下載連結維持不變。
+          gh release delete nightly --yes --cleanup-tag || true
+          # 沒有 release 卻殘留 tag 時，create 會沿用舊 tag 而忽略 --target。
+          gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/tags/nightly" >/dev/null 2>&1 || true
+          gh release create nightly dist/* \
+            --target "$GITHUB_SHA" \
+            --prerelease \
+            --title "Nightly ${DATE} (${SHORT_SHA})" \
+            --notes-file notes.md
