@@ -107,6 +107,9 @@ class UsageRing extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             valueLabel!,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: theme.textTheme.labelSmall?.copyWith(
               color: scheme.onSurfaceVariant,
             ),
@@ -120,6 +123,74 @@ class UsageRing extends StatelessWidget {
     if (percent >= 90) return const Color(0xFFE53935);
     if (percent >= 75) return const Color(0xFFF57C00);
     return color ?? scheme.primary;
+  }
+}
+
+/// 伺服器卡片用的小型環形儀表：中央百分比、下方短標籤。
+class MiniRing extends StatelessWidget {
+  const MiniRing({
+    super.key,
+    required this.label,
+    required this.percent,
+    this.color,
+    this.size = 52,
+  });
+
+  final String label;
+  final double percent;
+  final Color? color;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final target = percent.clamp(0.0, 100.0);
+    final base = color ?? scheme.primary;
+    final tone = percent >= 90
+        ? const Color(0xFFE53935)
+        : percent >= 75
+        ? const Color(0xFFF57C00)
+        : base;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TweenAnimationBuilder<double>(
+          tween: Tween<double>(begin: 0, end: target),
+          duration: const Duration(milliseconds: 700),
+          curve: Curves.easeOutCubic,
+          builder: (context, value, _) => SizedBox(
+            width: size,
+            height: size,
+            child: CustomPaint(
+              painter: _RingPainter(
+                percent: value,
+                color: tone,
+                trackColor: scheme.onSurface.withValues(alpha: 0.09),
+              ),
+              child: Center(
+                child: Text(
+                  '${value.round()}%',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    fontSize: size * 0.22,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: scheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
   }
 }
 

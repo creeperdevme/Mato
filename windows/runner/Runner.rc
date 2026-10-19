@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "me.creeperdev" "\0"
-            VALUE "FileDescription", "mato" "\0"
+            VALUE "FileDescription", "Mato" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "mato" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 me.creeperdev. All rights reserved." "\0"
             VALUE "OriginalFilename", "mato.exe" "\0"
-            VALUE "ProductName", "mato" "\0"
+            VALUE "ProductName", "Mato" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

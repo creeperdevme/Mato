@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>mato</string>
+	<string>Mato</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -25,6 +25,16 @@
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>NSFaceIDUsageDescription</key>
+	<string>使用 Face ID 解鎖 Mato，保護你的伺服器連線資料。</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Mato 需要存取區域網路，才能連線到區網中的伺服器、掃描 SSH 主機與發送 Wake-on-LAN 喚醒封包。</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>選擇照片上傳到伺服器，或附加給 AI 助理分析。</string>
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>
 	<dict>

@@ -1,109 +1,166 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../models/server_metrics.dart';
 import '../models/server_profile.dart';
+import '../services/monitor_service.dart';
+import '../services/settings_store.dart';
+import '../utils/format.dart';
+import 'common.dart';
 import 'load_chart.dart';
+import 'sparkline.dart';
 import 'usage_ring.dart';
 
-/// 伺服器「總覽」頁：摘要卡、資源使用圖表、負載圖與系統資訊。
-///
-/// 只接收資料、不直接讀取 Provider，方便在測試或預覽中套用假資料。
+const _cpuColor = MetricColors.cpu;
+const _memColor = MetricColors.memory;
+const _diskColor = MetricColors.disk;
+const _rxColor = MetricColors.rx;
+const _txColor = MetricColors.tx;
+const _gpuColor = MetricColors.gpu;
+
+/// 伺服器「總覽」頁：摘要卡、資源使用、CPU／記憶體／網路／磁碟／GPU 的即時
+/// 數據與歷史曲線、負載與系統資訊。
 class ServerOverviewTab extends StatelessWidget {
-  const ServerOverviewTab({
-    super.key,
-    required this.profile,
-    required this.status,
-    required this.statusMessage,
-    required this.metrics,
-    required this.fetchedAt,
-    required this.error,
-    required this.loading,
-    required this.onRefresh,
-    this.autoRefresh = false,
-    this.onToggleAutoRefresh,
-  });
+  const ServerOverviewTab({super.key, required this.profile});
 
   final ServerProfile profile;
-  final ServerStatus status;
-  final String statusMessage;
-  final ServerMetrics? metrics;
-  final DateTime? fetchedAt;
-  final String? error;
-  final bool loading;
-  final Future<void> Function() onRefresh;
-
-  /// 是否正在每 N 秒自動更新。
-  final bool autoRefresh;
-  final VoidCallback? onToggleAutoRefresh;
 
   @override
   Widget build(BuildContext context) {
-    final summary = metrics;
+    final monitorService = context.read<MonitorService>();
+    final monitor = monitorService.monitorOf(profile.id);
+    final showTemperature = context.select<SettingsStore, bool>(
+      (settings) => settings.showTemperature,
+    );
 
-    return RefreshIndicator(
-      onRefresh: onRefresh,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-        children: [
-          _HeroCard(
-            profile: profile,
-            status: status,
-            statusMessage: statusMessage,
-            metrics: summary,
-          ),
-          const SizedBox(height: 20),
-          _SectionHeader(
-            title: '資源使用',
-            caption: fetchedAt == null
-                ? null
-                : '${autoRefresh ? '即時更新' : '已更新'} ${_formatClock(fetchedAt!)}',
-            loading: loading,
-            onRefresh: onRefresh,
-            actions: [
-              if (onToggleAutoRefresh != null)
-                SizedBox(
-                  width: 36,
-                  height: 36,
-                  child: IconButton(
-                    padding: EdgeInsets.zero,
-                    visualDensity: VisualDensity.compact,
-                    tooltip: autoRefresh ? '暫停即時更新' : '開始即時更新',
-                    onPressed: onToggleAutoRefresh,
-                    icon: Icon(
-                      autoRefresh
-                          ? Icons.pause_rounded
-                          : Icons.play_arrow_rounded,
-                      size: 20,
-                    ),
+    return ListenableBuilder(
+      listenable: monitor,
+      builder: (context, _) {
+        final metrics = monitor.metrics;
+        return RefreshIndicator(
+          onRefresh: () =>
+              monitorService.refresh(profile.id, interactive: true),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final twoColumns = constraints.maxWidth >= 980;
+              final cards = metrics == null
+                  ? const <Widget>[]
+                  : <Widget>[
+                      _CpuCard(
+                        metrics: metrics,
+                        history: monitor.history,
+                        showTemperature: showTemperature,
+                      ),
+                      _MemoryCard(metrics: metrics, history: monitor.history),
+                      _NetworkCard(metrics: metrics, history: monitor.history),
+                      _DiskCard(metrics: metrics, history: monitor.history),
+                      if (metrics.gpus.isNotEmpty)
+                        _GpuCard(
+                          metrics: metrics,
+                          showTemperature: showTemperature,
+                        ),
+                      _LoadCard(metrics: metrics),
+                    ];
+
+              return ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+                children: [
+                  _HeroCard(
+                    profile: profile,
+                    monitor: monitor,
+                    showTemperature: showTemperature,
                   ),
-                ),
-            ],
+                  const SizedBox(height: 20),
+                  SectionHeader(
+                    title: '資源使用',
+                    caption: monitor.updatedAt == null
+                        ? null
+                        : '即時更新 · ${formatClock(monitor.updatedAt!)}',
+                    trailing: [
+                      SizedBox(
+                        width: 36,
+                        height: 36,
+                        child: IconButton(
+                          padding: EdgeInsets.zero,
+                          tooltip: '立即更新',
+                          onPressed: monitor.loading
+                              ? null
+                              : () => monitorService.refresh(
+                                  profile.id,
+                                  interactive: true,
+                                ),
+                          icon: monitor.loading
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.refresh_rounded, size: 20),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  if (metrics == null &&
+                      (monitor.loading || monitor.error == null))
+                    const _MetricsSkeleton()
+                  else if (metrics == null)
+                    _EmptyMetricsCard(
+                      error: monitor.error,
+                      onRefresh: () =>
+                          monitorService.refresh(profile.id, interactive: true),
+                    )
+                  else ...[
+                    _ResourceCard(metrics: metrics, error: monitor.error),
+                    const SizedBox(height: 14),
+                    if (twoColumns)
+                      _TwoColumnGrid(children: cards)
+                    else
+                      for (final card in cards) ...[
+                        card,
+                        const SizedBox(height: 14),
+                      ],
+                    const SizedBox(height: 8),
+                    const SectionHeader(title: '系統資訊'),
+                    const SizedBox(height: 10),
+                    _SystemInfoCard(profile: profile, metrics: metrics),
+                    const SizedBox(height: 18),
+                    _RawOutputCard(raw: metrics.raw),
+                  ],
+                ],
+              );
+            },
           ),
-          const SizedBox(height: 10),
-          if (summary == null && loading)
-            const _MetricsSkeleton()
-          else if (summary == null)
-            _EmptyMetricsCard(error: error, onRefresh: onRefresh)
-          else
-            _ResourceCard(metrics: summary, loading: loading, error: error),
-          if (summary != null) ...[
-            const SizedBox(height: 14),
-            _LoadCard(metrics: summary),
-            const SizedBox(height: 22),
-            const _SectionHeader(title: '系統資訊'),
-            const SizedBox(height: 10),
-            _SystemInfoCard(profile: profile, metrics: summary),
-            const SizedBox(height: 18),
-            _RawOutputCard(raw: summary.raw),
-          ],
-        ],
-      ),
+        );
+      },
     );
   }
+}
 
-  static String _formatClock(DateTime time) {
-    String two(int value) => value.toString().padLeft(2, '0');
-    return '${two(time.hour)}:${two(time.minute)}:${two(time.second)}';
+class _TwoColumnGrid extends StatelessWidget {
+  const _TwoColumnGrid({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final left = <Widget>[];
+    final right = <Widget>[];
+    for (var i = 0; i < children.length; i++) {
+      (i.isEven ? left : right)
+        ..add(children[i])
+        ..add(const SizedBox(height: 14));
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: Column(children: left)),
+        const SizedBox(width: 14),
+        Expanded(child: Column(children: right)),
+      ],
+    );
   }
 }
 
@@ -111,15 +168,13 @@ class ServerOverviewTab extends StatelessWidget {
 class _HeroCard extends StatelessWidget {
   const _HeroCard({
     required this.profile,
-    required this.status,
-    required this.statusMessage,
-    required this.metrics,
+    required this.monitor,
+    required this.showTemperature,
   });
 
   final ServerProfile profile;
-  final ServerStatus status;
-  final String statusMessage;
-  final ServerMetrics? metrics;
+  final ServerMonitor monitor;
+  final bool showTemperature;
 
   @override
   Widget build(BuildContext context) {
@@ -127,7 +182,8 @@ class _HeroCard extends StatelessWidget {
     final scheme = theme.colorScheme;
     final onHero = scheme.onPrimaryContainer;
     final radius = BorderRadius.circular(24);
-    final summary = metrics;
+    final summary = monitor.metrics;
+    final temperature = summary?.cpuTemperature;
 
     return Container(
       decoration: BoxDecoration(
@@ -189,11 +245,7 @@ class _HeroCard extends StatelessWidget {
                             color: onHero.withValues(alpha: 0.14),
                           ),
                         ),
-                        child: Icon(
-                          Icons.dns_rounded,
-                          color: onHero,
-                          size: 24,
-                        ),
+                        child: Icon(Icons.dns_rounded, color: onHero, size: 24),
                       ),
                       const SizedBox(width: 14),
                       Expanded(
@@ -211,8 +263,10 @@ class _HeroCard extends StatelessWidget {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              '${profile.username}@${profile.host}:${profile.port}',
-                              maxLines: 1,
+                              summary == null || summary.osName.isEmpty
+                                  ? profile.address
+                                  : '${profile.address} · ${summary.osName}',
+                              maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: onHero.withValues(alpha: 0.78),
@@ -222,7 +276,16 @@ class _HeroCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 10),
-                      _StatusPill(status: status, message: statusMessage),
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: scheme.surface.withValues(alpha: 0.85),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: StatusPill(
+                          status: monitor.status,
+                          message: monitor.statusMessage,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 18),
@@ -235,7 +298,7 @@ class _HeroCard extends StatelessWidget {
                       if (summary == null)
                         _HeroChip(
                           icon: Icons.schedule,
-                          label: '尚未讀取指標',
+                          label: monitor.loading ? '正在讀取指標…' : '尚未讀取指標',
                           color: onHero,
                         )
                       else ...[
@@ -253,8 +316,19 @@ class _HeroCard extends StatelessWidget {
                         if (summary.memTotalBytes > 0)
                           _HeroChip(
                             icon: Icons.developer_board,
-                            label:
-                                '記憶體 ${ServerMetrics.formatBytes(summary.memTotalBytes)}',
+                            label: '記憶體 ${formatBytes(summary.memTotalBytes)}',
+                            color: onHero,
+                          ),
+                        if (showTemperature && temperature != null)
+                          _HeroChip(
+                            icon: Icons.thermostat_rounded,
+                            label: '${temperature.toStringAsFixed(1)} °C',
+                            color: onHero,
+                          ),
+                        if (summary.ipAddresses.isNotEmpty)
+                          _HeroChip(
+                            icon: Icons.lan_outlined,
+                            label: summary.ipAddresses.first,
                             color: onHero,
                           ),
                       ],
@@ -284,9 +358,7 @@ class _GlowCircle extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          gradient: RadialGradient(
-            colors: [color, color.withValues(alpha: 0)],
-          ),
+          gradient: RadialGradient(colors: [color, color.withValues(alpha: 0)]),
         ),
       ),
     );
@@ -320,9 +392,633 @@ class _HeroChip extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: color,
+            style: Theme.of(context).textTheme.labelSmall
+                ?.copyWith(color: color, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 三到四個環形儀表：CPU、記憶體、磁碟（與 GPU）。
+class _ResourceCard extends StatelessWidget {
+  const _ResourceCard({required this.metrics, required this.error});
+
+  final ServerMetrics metrics;
+  final String? error;
+
+  @override
+  Widget build(BuildContext context) {
+    final gpu = metrics.gpus.isEmpty ? null : metrics.gpus.first;
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (error != null) ...[
+            _InlineWarning(message: error!),
+            const SizedBox(height: 14),
+          ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final rings = <Widget Function(double size)>[
+                (size) => UsageRing(
+                  label: 'CPU',
+                  icon: Icons.memory,
+                  percent: metrics.cpuPercent,
+                  valueLabel: '${metrics.cores} 核心',
+                  color: _cpuColor,
+                  size: size,
+                ),
+                (size) => UsageRing(
+                  label: '記憶體',
+                  icon: Icons.developer_board_outlined,
+                  percent: metrics.memPercent,
+                  valueLabel: formatBytesPair(
+                    metrics.memUsedBytes,
+                    metrics.memTotalBytes,
+                  ),
+                  color: _memColor,
+                  size: size,
+                ),
+                (size) => UsageRing(
+                  label: '磁碟',
+                  icon: Icons.storage_rounded,
+                  percent: metrics.diskPercent,
+                  valueLabel: formatBytesPair(
+                    metrics.diskUsedBytes,
+                    metrics.diskTotalBytes,
+                  ),
+                  color: _diskColor,
+                  size: size,
+                ),
+                if (gpu != null)
+                  (size) => UsageRing(
+                    label: 'GPU',
+                    icon: Icons.videogame_asset_outlined,
+                    percent: gpu.utilPercent,
+                    valueLabel: formatBytesPair(
+                      gpu.memUsedMiB * 1024 * 1024,
+                      gpu.memTotalMiB * 1024 * 1024,
+                    ),
+                    color: _gpuColor,
+                    size: size,
+                  ),
+              ];
+              // 手機上四個環擠在一列會讓數值換行，改成 2×2。
+              final perRow = rings.length == 4 && constraints.maxWidth < 520
+                  ? 2
+                  : rings.length;
+              const gap = 12.0;
+              final cellWidth =
+                  ((constraints.maxWidth - gap * (perRow - 1)) / perRow)
+                      .floorToDouble();
+              final ringSize = (cellWidth - 20).clamp(62.0, 108.0);
+              return Wrap(
+                spacing: gap,
+                runSpacing: 18,
+                children: [
+                  for (final ring in rings)
+                    SizedBox(width: cellWidth, child: ring(ringSize)),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CardTitle extends StatelessWidget {
+  const _CardTitle({
+    required this.icon,
+    required this.title,
+    this.caption,
+    this.trailing,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? caption;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: theme.colorScheme.primary),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        if (caption != null) ...[
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              caption!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ] else
+          const Spacer(),
+        ?trailing,
+      ],
+    );
+  }
+}
+
+/// 一列橫向比例條：標籤、條、數值。
+class _BarRow extends StatelessWidget {
+  const _BarRow({
+    required this.label,
+    required this.percent,
+    required this.color,
+    this.value,
+    this.labelWidth = 64,
+  });
+
+  final String label;
+  final double percent;
+  final Color color;
+  final String? value;
+  final double labelWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final tone = usageColor(percent, color);
+    return Row(
+      children: [
+        SizedBox(
+          width: labelWidth,
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: (percent / 100).clamp(0.0, 1.0)),
+              duration: const Duration(milliseconds: 600),
+              curve: Curves.easeOutCubic,
+              builder: (context, value, _) => LinearProgressIndicator(
+                value: value,
+                minHeight: 10,
+                color: tone,
+                backgroundColor: scheme.onSurface.withValues(alpha: 0.07),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        SizedBox(
+          width: value == null ? 44 : 118,
+          child: Text(
+            value ?? formatPercent(percent),
+            textAlign: TextAlign.right,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelMedium?.copyWith(
               fontWeight: FontWeight.w600,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CpuCard extends StatelessWidget {
+  const _CpuCard({
+    required this.metrics,
+    required this.history,
+    required this.showTemperature,
+  });
+
+  final ServerMetrics metrics;
+  final List<MetricsSample> history;
+  final bool showTemperature;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final temperature = metrics.cpuTemperature;
+    final cores = metrics.perCore;
+
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _CardTitle(
+            icon: Icons.memory_rounded,
+            title: 'CPU',
+            caption: metrics.cpuModel.isEmpty ? null : metrics.cpuModel,
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 16,
+            runSpacing: 6,
+            children: [
+              LegendItem(
+                color: _cpuColor,
+                label: '使用率',
+                value: formatPercent(metrics.cpuPercent),
+              ),
+              LegendItem(
+                color: const Color(0xFFF97316),
+                label: 'I/O 等待',
+                value: formatPercent(metrics.iowaitPercent),
+              ),
+              if (showTemperature && temperature != null)
+                LegendItem(
+                  color: temperature >= 80
+                      ? const Color(0xFFE53935)
+                      : const Color(0xFF64748B),
+                  label: '溫度',
+                  value: '${temperature.toStringAsFixed(1)} °C',
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Sparkline(
+            maxValue: 100,
+            capacity: ServerMonitor.maxSamples,
+            series: [
+              SparkSeries(
+                values: [for (final sample in history) sample.cpu],
+                color: _cpuColor,
+              ),
+            ],
+          ),
+          if (cores.length > 1) ...[
+            const SizedBox(height: 14),
+            Text(
+              '各核心',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 8),
+            _CoreGrid(cores: cores),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// 每個核心一格的小長條，核心很多時自動換行。
+class _CoreGrid extends StatelessWidget {
+  const _CoreGrid({required this.cores});
+
+  final List<CpuCoreUsage> cores;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = (constraints.maxWidth / 74).floor().clamp(2, 16);
+        final width = (constraints.maxWidth - (columns - 1) * 8) / columns;
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final core in cores)
+              Tooltip(
+                message: '${core.name}：${formatPercent(core.percent)}',
+                child: SizedBox(
+                  width: width,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            core.name.replaceFirst('cpu', '#'),
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            '${core.percent.round()}%',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              fontFeatures: const [
+                                FontFeature.tabularFigures(),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: (core.percent / 100).clamp(0.0, 1.0),
+                          minHeight: 6,
+                          color: usageColor(core.percent, _cpuColor),
+                          backgroundColor: scheme.onSurface.withValues(
+                            alpha: 0.07,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _MemoryCard extends StatelessWidget {
+  const _MemoryCard({required this.metrics, required this.history});
+
+  final ServerMetrics metrics;
+  final List<MetricsSample> history;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final total = metrics.memTotalBytes;
+    // 「已用」不含快取；快取可以隨時釋放，所以分開顯示。
+    final used = metrics.memUsedBytes;
+    final cache = metrics.memCacheBytes.clamp(
+      0,
+      (total - used).clamp(0, total),
+    );
+    final free = (total - used - cache).clamp(0, total);
+    int share(int value) => total <= 0 ? 0 : (value / total * 1000).round();
+
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _CardTitle(
+            icon: Icons.developer_board_rounded,
+            title: '記憶體',
+            caption: '${formatBytes(used)} / ${formatBytes(total)}',
+          ),
+          const SizedBox(height: 14),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: SizedBox(
+              height: 14,
+              child: Row(
+                children: [
+                  if (share(used) > 0)
+                    Expanded(
+                      flex: share(used),
+                      child: Container(
+                        color: usageColor(metrics.memPercent, _memColor),
+                      ),
+                    ),
+                  if (share(cache) > 0)
+                    Expanded(
+                      flex: share(cache),
+                      child: Container(
+                        color: _memColor.withValues(alpha: 0.35),
+                      ),
+                    ),
+                  Expanded(
+                    flex: share(free).clamp(1, 1000),
+                    child: Container(
+                      color: scheme.onSurface.withValues(alpha: 0.07),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 16,
+            runSpacing: 6,
+            children: [
+              LegendItem(
+                color: _memColor,
+                label: '已用',
+                value: formatBytes(used),
+              ),
+              LegendItem(
+                color: _memColor.withValues(alpha: 0.35),
+                label: '快取',
+                value: formatBytes(cache),
+              ),
+              LegendItem(
+                color: scheme.onSurface.withValues(alpha: 0.2),
+                label: '可用',
+                value: formatBytes(metrics.memAvailableBytes),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Sparkline(
+            maxValue: 100,
+            capacity: ServerMonitor.maxSamples,
+            series: [
+              SparkSeries(
+                values: [for (final sample in history) sample.memory],
+                color: _memColor,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _BarRow(
+            label: '交換空間',
+            percent: metrics.swapPercent,
+            color: const Color(0xFF6366F1),
+            value: metrics.hasSwap
+                ? '${formatBytes(metrics.swapUsedBytes)} / '
+                      '${formatBytes(metrics.swapTotalBytes)}'
+                : '未啟用',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NetworkCard extends StatefulWidget {
+  const _NetworkCard({required this.metrics, required this.history});
+
+  final ServerMetrics metrics;
+  final List<MetricsSample> history;
+
+  @override
+  State<_NetworkCard> createState() => _NetworkCardState();
+}
+
+class _NetworkCardState extends State<_NetworkCard> {
+  /// null 代表所有實體介面加總。
+  String? _interface;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = widget.metrics;
+    final names = metrics.netInterfaces.map((item) => item.name).toList();
+    if (_interface != null && !names.contains(_interface)) _interface = null;
+    final selected = _interface == null
+        ? null
+        : metrics.netInterfaces.firstWhere((item) => item.name == _interface);
+
+    final rx = selected?.rxRate ?? metrics.netRxRate;
+    final tx = selected?.txRate ?? metrics.netTxRate;
+    final rxTotal = selected?.rxBytes ?? metrics.netRxTotal;
+    final txTotal = selected?.txBytes ?? metrics.netTxTotal;
+    final rxHistory = [
+      for (final sample in widget.history)
+        _interface == null
+            ? sample.netRx
+            : sample.interfaces[_interface]?.$1 ?? 0,
+    ];
+    final txHistory = [
+      for (final sample in widget.history)
+        _interface == null
+            ? sample.netTx
+            : sample.interfaces[_interface]?.$2 ?? 0,
+    ];
+
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _CardTitle(
+            icon: Icons.lan_rounded,
+            title: '網路',
+            trailing: names.isEmpty
+                ? null
+                : DropdownButtonHideUnderline(
+                    child: DropdownButton<String?>(
+                      value: _interface,
+                      isDense: true,
+                      borderRadius: BorderRadius.circular(12),
+                      style: Theme.of(context).textTheme.labelMedium,
+                      items: [
+                        const DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('全部介面'),
+                        ),
+                        for (final name in names)
+                          DropdownMenuItem<String?>(
+                            value: name,
+                            child: Text(name),
+                          ),
+                      ],
+                      onChanged: (value) => setState(() => _interface = value),
+                    ),
+                  ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _RateTile(
+                  icon: Icons.south_rounded,
+                  color: _rxColor,
+                  label: '下載',
+                  rate: rx,
+                  total: rxTotal,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _RateTile(
+                  icon: Icons.north_rounded,
+                  color: _txColor,
+                  label: '上傳',
+                  rate: tx,
+                  total: txTotal,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Sparkline(
+            capacity: ServerMonitor.maxSamples,
+            minMax: 10 * 1024,
+            series: [
+              SparkSeries(values: rxHistory, color: _rxColor),
+              SparkSeries(values: txHistory, color: _txColor, fill: false),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RateTile extends StatelessWidget {
+  const _RateTile({
+    required this.icon,
+    required this.color,
+    required this.label,
+    required this.rate,
+    required this.total,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String label;
+  final double rate;
+  final int total;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  formatRate(rate),
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+                Text(
+                  '$label · 累計 ${formatBytes(total)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -331,295 +1027,232 @@ class _HeroChip extends StatelessWidget {
   }
 }
 
-class _StatusPill extends StatelessWidget {
-  const _StatusPill({required this.status, required this.message});
-
-  final ServerStatus status;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final color = _color(theme);
-    final dark = theme.brightness == Brightness.dark;
-    final background = dark
-        ? Color.alphaBlend(Colors.black.withValues(alpha: 0.35), scheme.surface)
-        : scheme.surface;
-
-    return Tooltip(
-      message: message.isEmpty ? _label : message,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: background.withValues(alpha: 0.94),
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _StatusDot(color: color, animate: status == ServerStatus.online),
-            const SizedBox(width: 6),
-            Text(
-              _label,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: color,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String get _label {
-    switch (status) {
-      case ServerStatus.online:
-        return '線上';
-      case ServerStatus.checking:
-        return '檢查中';
-      case ServerStatus.offline:
-        return '離線';
-      case ServerStatus.authFailed:
-        return '驗證失敗';
-      case ServerStatus.error:
-        return '錯誤';
-      case ServerStatus.unknown:
-        return '未檢查';
-    }
-  }
-
-  Color _color(ThemeData theme) {
-    final dark = theme.brightness == Brightness.dark;
-    switch (status) {
-      case ServerStatus.online:
-        return dark ? const Color(0xFF7EE2A8) : const Color(0xFF146C2E);
-      case ServerStatus.checking:
-        return dark ? const Color(0xFF9EC6FF) : const Color(0xFF11468F);
-      case ServerStatus.authFailed:
-        return dark ? const Color(0xFFFFC470) : const Color(0xFF8A4B00);
-      case ServerStatus.offline:
-      case ServerStatus.error:
-        return dark ? const Color(0xFFFF9E9E) : const Color(0xFFB3261E);
-      case ServerStatus.unknown:
-        return theme.colorScheme.onSurfaceVariant;
-    }
-  }
-}
-
-class _StatusDot extends StatefulWidget {
-  const _StatusDot({required this.color, this.animate = false});
-
-  final Color color;
-  final bool animate;
-
-  @override
-  State<_StatusDot> createState() => _StatusDotState();
-}
-
-class _StatusDotState extends State<_StatusDot>
-    with SingleTickerProviderStateMixin {
-  AnimationController? _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.animate) _start();
-  }
-
-  @override
-  void didUpdateWidget(_StatusDot oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.animate && _controller == null) {
-      _start();
-    } else if (!widget.animate && _controller != null) {
-      _controller!.dispose();
-      _controller = null;
-    }
-  }
-
-  void _start() {
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _controller?.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final dot = Container(
-      width: 8,
-      height: 8,
-      decoration: BoxDecoration(color: widget.color, shape: BoxShape.circle),
-    );
-    final controller = _controller;
-    if (controller == null) return dot;
-    return FadeTransition(
-      opacity: Tween<double>(begin: 0.45, end: 1).animate(
-        CurvedAnimation(parent: controller, curve: Curves.easeInOut),
-      ),
-      child: dot,
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({
-    required this.title,
-    this.caption,
-    this.loading = false,
-    this.onRefresh,
-    this.actions = const [],
-  });
-
-  final String title;
-  final String? caption;
-  final bool loading;
-  final Future<void> Function()? onRefresh;
-  final List<Widget> actions;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final refresh = onRefresh;
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        // 標題與說明放在同一個 Expanded 內，避免它們和右側按鈕爭奪
-        // 剩餘空間（Spacer 與 Flexible 同時 flex:1 會把按鈕擠到中間）。
-        Expanded(
-          child: Row(
-            children: [
-              Text(
-                title,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              if (caption != null) ...[
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    caption!,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: scheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-        ...actions,
-        if (refresh != null)
-          SizedBox(
-            width: 36,
-            height: 36,
-            child: IconButton(
-              padding: EdgeInsets.zero,
-              visualDensity: VisualDensity.compact,
-              tooltip: '重新整理',
-              onPressed: loading ? null : () => refresh(),
-              icon: loading
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.refresh_rounded, size: 20),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-/// 三個環形儀表：CPU、記憶體、磁碟。
-class _ResourceCard extends StatelessWidget {
-  const _ResourceCard({
-    required this.metrics,
-    required this.loading,
-    required this.error,
-  });
+class _DiskCard extends StatelessWidget {
+  const _DiskCard({required this.metrics, required this.history});
 
   final ServerMetrics metrics;
-  final bool loading;
-  final String? error;
+  final List<MetricsSample> history;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final systems = metrics.fileSystems;
 
-    return _SurfaceCard(
+    return SurfaceCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (loading) ...[
-            const LinearProgressIndicator(minHeight: 2),
-            const SizedBox(height: 14),
+          const _CardTitle(icon: Icons.storage_rounded, title: '磁碟'),
+          const SizedBox(height: 12),
+          if (systems.isEmpty)
+            _BarRow(
+              label: '/',
+              percent: metrics.diskPercent,
+              color: _diskColor,
+              value:
+                  '${formatBytes(metrics.diskUsedBytes)} / '
+                  '${formatBytes(metrics.diskTotalBytes)}',
+            )
+          else
+            for (final fs in systems) ...[
+              Tooltip(
+                message: '${fs.mount}（${fs.fsType}）',
+                child: _BarRow(
+                  label: fs.mount,
+                  labelWidth: 86,
+                  percent: fs.percent,
+                  color: _diskColor,
+                  value:
+                      '${formatBytes(fs.usedBytes)} / ${formatBytes(fs.totalBytes)}',
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+          const SizedBox(height: 6),
+          Divider(
+            height: 1,
+            color: scheme.outlineVariant.withValues(alpha: 0.5),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 16,
+            runSpacing: 6,
+            children: [
+              LegendItem(
+                color: const Color(0xFF06B6D4),
+                label: '讀取',
+                value: formatRate(metrics.diskReadRate),
+              ),
+              LegendItem(
+                color: const Color(0xFFF43F5E),
+                label: '寫入',
+                value: formatRate(metrics.diskWriteRate),
+              ),
+              LegendItem(
+                color: scheme.outline,
+                label: 'IOPS',
+                value: metrics.diskIops.toStringAsFixed(0),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Sparkline(
+            capacity: ServerMonitor.maxSamples,
+            minMax: 64 * 1024,
+            height: 60,
+            series: [
+              SparkSeries(
+                values: [for (final sample in history) sample.diskRead],
+                color: const Color(0xFF06B6D4),
+              ),
+              SparkSeries(
+                values: [for (final sample in history) sample.diskWrite],
+                color: const Color(0xFFF43F5E),
+                fill: false,
+              ),
+            ],
+          ),
+          if (metrics.disks.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            for (final disk in metrics.disks)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.album_outlined,
+                      size: 15,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        disk.name,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    Flexible(
+                      flex: 3,
+                      child: Text(
+                        '讀 ${formatRate(disk.readRate)} · 寫 ${formatRate(disk.writeRate)}'
+                        ' · 忙碌 ${formatPercent(disk.busyPercent)}',
+                        textAlign: TextAlign.right,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
           ],
-          if (error != null) ...[
-            _InlineWarning(message: error!),
+        ],
+      ),
+    );
+  }
+}
+
+class _GpuCard extends StatelessWidget {
+  const _GpuCard({required this.metrics, required this.showTemperature});
+
+  final ServerMetrics metrics;
+  final bool showTemperature;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return SurfaceCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _CardTitle(
+            icon: Icons.videogame_asset_rounded,
+            title: 'GPU',
+            caption: '${metrics.gpus.length} 張',
+          ),
+          for (final gpu in metrics.gpus) ...[
             const SizedBox(height: 14),
-          ],
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final ringSize = ((constraints.maxWidth - 36) / 3).clamp(
-                62.0,
-                108.0,
-              );
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: UsageRing(
-                      label: 'CPU',
-                      icon: Icons.memory,
-                      percent: metrics.cpuPercent,
-                      valueLabel: '${metrics.cores} 核心',
-                      color: scheme.primary,
-                      size: ringSize,
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    gpu.name,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  Expanded(
-                    child: UsageRing(
-                      label: '記憶體',
-                      icon: Icons.developer_board_outlined,
-                      percent: metrics.memPercent,
-                      valueLabel:
-                          '${ServerMetrics.formatBytes(metrics.memUsedBytes)} / '
-                          '${ServerMetrics.formatBytes(metrics.memTotalBytes)}',
-                      color: const Color(0xFF3B82F6),
-                      size: ringSize,
-                    ),
+                ),
+                if (showTemperature && gpu.temperature != null)
+                  TagChip(
+                    label: '${gpu.temperature!.round()} °C',
+                    icon: Icons.thermostat_rounded,
                   ),
-                  Expanded(
-                    child: UsageRing(
-                      label: '磁碟',
-                      icon: Icons.storage_rounded,
-                      percent: metrics.diskPercent,
-                      valueLabel:
-                          '${ServerMetrics.formatBytes(metrics.diskUsedBytes)} / '
-                          '${ServerMetrics.formatBytes(metrics.diskTotalBytes)}',
-                      color: const Color(0xFFA855F7),
-                      size: ringSize,
-                    ),
+                if (gpu.powerDraw != null) ...[
+                  const SizedBox(width: 6),
+                  TagChip(
+                    label: gpu.powerLimit == null
+                        ? '${gpu.powerDraw!.round()} W'
+                        : '${gpu.powerDraw!.round()} / ${gpu.powerLimit!.round()} W',
+                    icon: Icons.bolt_rounded,
                   ),
                 ],
-              );
-            },
-          ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            _BarRow(label: '使用率', percent: gpu.utilPercent, color: _gpuColor),
+            const SizedBox(height: 6),
+            _BarRow(
+              label: '顯示記憶體',
+              percent: gpu.memPercent,
+              color: _gpuColor,
+              value:
+                  '${(gpu.memUsedMiB / 1024).toStringAsFixed(1)} / '
+                  '${(gpu.memTotalMiB / 1024).toStringAsFixed(1)} GB',
+            ),
+            if (gpu.processes.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(
+                'GPU 工作',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+              for (final process in gpu.processes)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 64,
+                        child: Text(
+                          '${process.pid}',
+                          style: monoStyle(fontSize: 12),
+                        ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          process.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ),
+                      Text(
+                        '${process.usedMemoryMiB.round()} MiB',
+                        style: theme.textTheme.labelSmall,
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ],
         ],
       ),
     );
@@ -634,28 +1267,19 @@ class _LoadCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-
-    return _SurfaceCard(
+    return SurfaceCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Text(
-                '平均負載',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+          _CardTitle(
+            icon: Icons.speed_rounded,
+            title: '平均負載',
+            trailing: Text(
+              '核心容量 ${(metrics.loadPerCore * 100).toStringAsFixed(1)}%',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
-              const Spacer(),
-              Text(
-                '核心容量 ${(metrics.loadPerCore * 100).toStringAsFixed(1)}%',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                ),
-              ),
-            ],
+            ),
           ),
           const SizedBox(height: 16),
           LoadChart(
@@ -679,6 +1303,10 @@ class _SystemInfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final kernel = [
+      metrics.kernel,
+      metrics.arch,
+    ].where((item) => item.isNotEmpty).join(' · ');
     final rows = <Widget>[
       _MetricRow(
         icon: Icons.laptop_mac,
@@ -688,43 +1316,36 @@ class _SystemInfoCard extends StatelessWidget {
       _MetricRow(
         icon: Icons.terminal,
         label: '核心版本',
-        value: metrics.kernel.isEmpty ? '未知' : metrics.kernel,
+        value: kernel.isEmpty ? '未知' : kernel,
       ),
       _MetricRow(
         icon: Icons.dns_outlined,
         label: '主機名稱',
         value: metrics.hostname.isEmpty ? profile.host : metrics.hostname,
       ),
+      if (metrics.cpuModel.isNotEmpty)
+        _MetricRow(icon: Icons.memory, label: 'CPU', value: metrics.cpuModel),
+      if (metrics.ipAddresses.isNotEmpty)
+        _MetricRow(
+          icon: Icons.lan_outlined,
+          label: 'IP 位址',
+          value: metrics.ipAddresses.join('\n'),
+        ),
       _MetricRow(
         icon: Icons.power_settings_new,
         label: '開機時間',
         value: metrics.bootTime ?? '未知',
       ),
-      _MetricRow(
-        icon: Icons.developer_board,
-        label: '記憶體',
-        value:
-            '${ServerMetrics.formatBytes(metrics.memUsedBytes)} / '
-            '${ServerMetrics.formatBytes(metrics.memTotalBytes)}',
-      ),
-      _MetricRow(
-        icon: Icons.swap_horiz,
-        label: '交換空間',
-        value: metrics.hasSwap
-            ? '${ServerMetrics.formatBytes(metrics.swapUsedBytes)} / '
-                  '${ServerMetrics.formatBytes(metrics.swapTotalBytes)}'
-            : '未啟用',
-      ),
-      _MetricRow(
-        icon: Icons.sd_storage,
-        label: '磁碟 (/)',
-        value:
-            '${ServerMetrics.formatBytes(metrics.diskUsedBytes)} / '
-            '${ServerMetrics.formatBytes(metrics.diskTotalBytes)}',
-      ),
+      if (metrics.totalProcesses != null)
+        _MetricRow(
+          icon: Icons.view_list_outlined,
+          label: '程序',
+          value:
+              '${metrics.totalProcesses} 個（執行中 ${metrics.runningProcesses ?? 0}）',
+        ),
     ];
 
-    return _SurfaceCard(
+    return SurfaceCard(
       child: Column(
         children: [
           for (var index = 0; index < rows.length; index++) ...[
@@ -775,7 +1396,7 @@ class _MetricRow extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: Text(
+          child: SelectableText(
             value,
             style: theme.textTheme.bodyMedium?.copyWith(
               fontWeight: FontWeight.w500,
@@ -797,7 +1418,7 @@ class _RawOutputCard extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
 
-    return _SurfaceCard(
+    return SurfaceCard(
       padding: EdgeInsets.zero,
       child: Theme(
         data: theme.copyWith(dividerColor: Colors.transparent),
@@ -821,18 +1442,14 @@ class _RawOutputCard extends StatelessWidget {
           children: [
             Container(
               width: double.infinity,
+              constraints: const BoxConstraints(maxHeight: 360),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: scheme.surfaceContainerHighest.withValues(alpha: 0.7),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: SelectableText(
-                raw,
-                style: const TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 11.5,
-                  height: 1.5,
-                ),
+              child: SingleChildScrollView(
+                child: SelectableText(raw, style: monoStyle(fontSize: 11.5)),
               ),
             ),
           ],
@@ -854,7 +1471,7 @@ class _EmptyMetricsCard extends StatelessWidget {
     final scheme = theme.colorScheme;
     final failed = error != null;
 
-    return _SurfaceCard(
+    return SurfaceCard(
       child: Column(
         children: [
           Icon(
@@ -912,7 +1529,7 @@ class _InlineWarning extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              message,
+              '顯示的是上一次成功取得的資料。$message',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: scheme.onErrorContainer,
               ),
@@ -932,12 +1549,12 @@ class _MetricsSkeleton extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final base = scheme.onSurface.withValues(alpha: 0.08);
 
-    return _SurfaceCard(
+    return SurfaceCard(
       child: Column(
         children: [
           _Pulse(
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 for (var i = 0; i < 3; i++)
                   Column(
@@ -967,9 +1584,8 @@ class _MetricsSkeleton extends StatelessWidget {
           const SizedBox(height: 18),
           Text(
             '正在讀取系統指標…',
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: scheme.onSurfaceVariant,
-            ),
+            style: Theme.of(context).textTheme.labelSmall
+                ?.copyWith(color: scheme.onSurfaceVariant),
           ),
         ],
       ),
@@ -1001,36 +1617,11 @@ class _PulseState extends State<_Pulse> with SingleTickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return FadeTransition(
-      opacity: Tween<double>(begin: 0.4, end: 0.9).animate(
-        CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-      ),
+      opacity: Tween<double>(
+        begin: 0.4,
+        end: 0.9,
+      ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut)),
       child: widget.child,
-    );
-  }
-}
-
-/// 統一樣式的卡片外框（圓角＋淡邊框，避免 M3 預設陰影在深色模式下過重）。
-class _SurfaceCard extends StatelessWidget {
-  const _SurfaceCard({required this.child, this.padding});
-
-  final Widget child;
-  final EdgeInsetsGeometry? padding;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: scheme.outlineVariant.withValues(alpha: 0.45),
-        ),
-      ),
-      clipBehavior: Clip.antiAlias,
-      padding: padding ?? const EdgeInsets.all(16),
-      child: child,
     );
   }
 }
