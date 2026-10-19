@@ -48,6 +48,7 @@ class _FileManagerScreenState extends State<FileManagerScreen>
   }
 
   Widget _buildToolbar(BuildContext context) {
+    final parent = _parentOf(_currentPath);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       child: Row(
@@ -62,9 +63,19 @@ class _FileManagerScreenState extends State<FileManagerScreen>
             icon: const Icon(Icons.arrow_back),
             tooltip: '上一頁',
           ),
-          const SizedBox(width: 8),
+          IconButton(
+            onPressed: parent == null ? null : () => _navigateTo(parent),
+            icon: const Icon(Icons.arrow_upward),
+            tooltip: '上層目錄',
+          ),
+          const SizedBox(width: 4),
           Expanded(
             child: Text('檔案管理', style: Theme.of(context).textTheme.titleLarge),
+          ),
+          IconButton(
+            onPressed: () => _goToRoot(),
+            icon: const Icon(Icons.vertical_align_top),
+            tooltip: '回到根目錄 (/)',
           ),
           IconButton(
             onPressed: () => _createFolder(),
@@ -97,10 +108,20 @@ class _FileManagerScreenState extends State<FileManagerScreen>
             _currentPath,
             style: const TextStyle(fontFamily: 'monospace'),
           ),
-          trailing: IconButton(
-            icon: const Icon(Icons.home_outlined),
-            onPressed: _loadHome,
-            tooltip: '回到根目錄',
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.home_outlined),
+                onPressed: _loadHome,
+                tooltip: '使用者家目錄',
+              ),
+              IconButton(
+                icon: const Icon(Icons.sd_storage_outlined),
+                onPressed: () => _goToRoot(),
+                tooltip: '根目錄 (/)',
+              ),
+            ],
           ),
         ),
       ),
@@ -180,6 +201,29 @@ class _FileManagerScreenState extends State<FileManagerScreen>
       ),
     );
   }
+
+  /// 目前路徑的上一層；已在 `/` 時回傳 null。
+  String? _parentOf(String path) {
+    if (path.isEmpty || path == '/') return null;
+    var trimmed = path;
+    while (trimmed.length > 1 && trimmed.endsWith('/')) {
+      trimmed = trimmed.substring(0, trimmed.length - 1);
+    }
+    final index = trimmed.lastIndexOf('/');
+    return index <= 0 ? '/' : trimmed.substring(0, index);
+  }
+
+  /// 切換目錄並保留上一頁紀錄。
+  void _navigateTo(String path) {
+    if (path == _currentPath) {
+      _loadDirectory(path);
+      return;
+    }
+    _history.add(path);
+    _loadDirectory(path);
+  }
+
+  void _goToRoot() => _navigateTo('/');
 
   Future<void> _loadHome() async {
     setState(() => _loading = true);
