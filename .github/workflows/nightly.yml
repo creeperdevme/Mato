@@ -1,11 +1,10 @@
 name: Nightly
 
-# 每天自動建置所有平台，並更新固定的 `nightly` release（下載連結不會變）。
-# 排程觸發時若 main 沒有新提交就略過；手動觸發則一律重新建置。
+# 推送到 main 時自動建置所有平台，並更新固定的 `nightly` release（下載連結不會變）。
+# 也可手動觸發重新建置。
 on:
-  schedule:
-    # 每天台灣時間 03:23（UTC 19:23）
-    - cron: '23 19 * * *'
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -20,10 +19,9 @@ env:
 
 jobs:
   prepare:
-    name: 檢查是否需要建置
+    name: 準備版本資訊
     runs-on: ubuntu-latest
     outputs:
-      build: ${{ steps.check.outputs.build }}
       version: ${{ steps.meta.outputs.version }}
       build_number: ${{ steps.meta.outputs.build_number }}
       short_sha: ${{ steps.meta.outputs.short_sha }}
@@ -31,20 +29,6 @@ jobs:
       dart_defines: ${{ steps.meta.outputs.dart_defines }}
     steps:
       - uses: actions/checkout@v7
-
-      - id: check
-        name: 比對目前 nightly 對應的提交
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          current="$(git rev-parse HEAD)"
-          previous="$(gh api "repos/${GITHUB_REPOSITORY}/commits/nightly" --jq .sha 2>/dev/null || true)"
-          if [ "${GITHUB_EVENT_NAME}" = "schedule" ] && [ "$current" = "$previous" ]; then
-            echo "build=false" >> "$GITHUB_OUTPUT"
-            echo "nightly 已經是最新的 \`${current:0:7}\`，略過建置。" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "build=true" >> "$GITHUB_OUTPUT"
-          fi
 
       - id: meta
         name: 版本資訊
@@ -64,7 +48,6 @@ jobs:
   test:
     name: 靜態分析與測試
     needs: prepare
-    if: needs.prepare.outputs.build == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -274,7 +257,7 @@ jobs:
     name: 更新 nightly release
     needs: [prepare, test, android, linux, windows, apple]
     # 某個平台失敗時仍發布其他平台，並在說明中標示。
-    if: ${{ !cancelled() && needs.prepare.outputs.build == 'true' && needs.test.result == 'success' }}
+    if: ${{ !cancelled() && needs.test.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -336,7 +319,7 @@ jobs:
           base="https://github.com/${GITHUB_REPOSITORY}/releases/download/nightly"
           {
             echo "自動建置的 nightly 版本：\`${SHORT_SHA}\`（${DATE}）。"
-            echo "main 有新提交時每天自動更新，下方下載連結固定不變。"
+            echo "推送到 main 時自動更新，下方下載連結固定不變。"
             echo
             echo "| 平台 | 下載 | 狀態 |"
             echo "|---|---|---|"
