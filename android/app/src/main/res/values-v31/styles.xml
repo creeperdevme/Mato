@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12 起由系統啟動畫面顯示圖示：沒有圖示底色時把 108 格線的圖畫成 288dp，
+         和 launch_background 一樣大。 -->
+    <style name="LaunchTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:windowBackground">@drawable/launch_background</item>
+        <!-- 狀態列透出啟動畫面的綠底、配白色圖示（預設是灰色的 colorPrimaryDark）。 -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowSplashScreenBackground">@color/splash_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/launch_mark</item>
+    </style>
+</resources>

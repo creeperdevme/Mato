@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 由 test/app_icons_test.dart 產生，請勿手動修改。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:pathData="M32.36,64.02 L37.24,64.02 L42.83,43.07 L49.11,56.48 L55.4,43.07 L60.98,64.02 L65.17,64.02"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="6.28"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M70.69,64.02a4.05,4.05 0 1,1 8.1,0a4.05,4.05 0 1,1 -8.1,0z"
+        android:fillColor="#FFFFFFFF" />
+</vector>

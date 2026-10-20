@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Modify this file to customize your launch splash screen -->
+<!-- Android 11 以前的啟動畫面：品牌綠底色加上未通電的標誌。標誌的大小（108 格線畫成
+     288dp）與位置要和 Android 12 起的系統啟動畫面、lib/screens/startup_splash.dart
+     的第一個畫面一致，Flutter 接手時才看不出切換。 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@android:color/white" />
-
-    <!-- You can insert your own image assets here -->
-    <!-- <item>
-        <bitmap
-            android:gravity="center"
-            android:src="@mipmap/launch_image" />
-    </item> -->
+    <item android:drawable="@color/splash_background" />
+    <item
+        android:width="288dp"
+        android:height="288dp"
+        android:drawable="@drawable/launch_mark"
+        android:gravity="center" />
 </layer-list>

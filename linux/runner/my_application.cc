@@ -54,6 +54,16 @@ static void my_application_activate(GApplication* application) {
 
   gtk_window_set_default_size(window, 1280, 720);
 
+  // 視窗圖示放在執行檔旁的 data/（見 linux/CMakeLists.txt）。Wayland 下桌面
+  // 環境改用 .desktop 檔的圖示，這裡只影響 X11。
+  g_autofree gchar* executable = g_file_read_link("/proc/self/exe", nullptr);
+  if (executable != nullptr) {
+    g_autofree gchar* directory = g_path_get_dirname(executable);
+    g_autofree gchar* icon =
+        g_build_filename(directory, "data", "app_icon.png", nullptr);
+    gtk_window_set_icon_from_file(window, icon, nullptr);
+  }
+
   g_autoptr(FlDartProject) project = fl_dart_project_new();
   fl_dart_project_set_dart_entrypoint_arguments(
       project, self->dart_entrypoint_arguments);

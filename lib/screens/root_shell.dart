@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../widgets/common.dart';
+import '../widgets/mato_logo.dart';
 import 'home_screen.dart';
 import 'scripts_screen.dart';
 import 'settings_screen.dart';
@@ -49,7 +50,7 @@ class _RootShellState extends State<RootShell> {
               labelType: NavigationRailLabelType.all,
               leading: const Padding(
                 padding: EdgeInsets.only(top: 8, bottom: 12),
-                child: _Logo(),
+                child: MatoLogo(),
               ),
               destinations: [
                 for (final (icon, selected, label) in _destinations)
@@ -81,28 +82,6 @@ class _RootShellState extends State<RootShell> {
             ),
         ],
       ),
-    );
-  }
-}
-
-class _Logo extends StatelessWidget {
-  const _Logo();
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      width: 44,
-      height: 44,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [scheme.primary, scheme.tertiary],
-        ),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Icon(Icons.dns_rounded, color: scheme.onPrimary, size: 24),
     );
   }
 }

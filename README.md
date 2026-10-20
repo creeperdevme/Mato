@@ -79,6 +79,12 @@ flutter analyze
 flutter test
 ```
 
+App 圖示與各平台的原生啟動畫面都依 `lib/widgets/mato_logo.dart` 的標誌定義產生，`flutter test` 會檢查兩者是否一致。修改標誌後重新產生並提交：
+
+```bash
+MATO_UPDATE_ICONS=1 flutter test test/app_icons_test.dart
+```
+
 `test/e2e_ssh_test.dart` 會對真正的 SSH 伺服器測試連線池、監控腳本、SFTP、腳本、轉發、跳板機、SOCKS5 與 tmux，預設略過；要執行時設定環境變數：
 
 ```bash

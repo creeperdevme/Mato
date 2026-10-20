@@ -14,6 +14,7 @@ import '../services/known_hosts_store.dart';
 import '../services/settings_store.dart';
 import '../utils/format.dart';
 import '../widgets/common.dart';
+import '../widgets/mato_logo.dart';
 import '../widgets/terminal_themes.dart';
 import 'keys_screen.dart';
 
@@ -193,7 +194,7 @@ class SettingsScreen extends StatelessWidget {
                   child: Column(
                     children: [
                       ListTile(
-                        leading: const Icon(Icons.info_outline_rounded),
+                        leading: const MatoLogo(size: 36),
                         title: const Text('Mato'),
                         subtitle: Text(BuildInfo.describe),
                         onTap: () => copyText(
@@ -210,6 +211,10 @@ class SettingsScreen extends StatelessWidget {
                           context: context,
                           applicationName: 'Mato',
                           applicationVersion: BuildInfo.describe,
+                          applicationIcon: const Padding(
+                            padding: EdgeInsets.all(8),
+                            child: MatoLogo(size: 56),
+                          ),
                         ),
                       ),
                     ],
