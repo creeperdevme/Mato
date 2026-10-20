@@ -15,6 +15,7 @@ import 'package:mato/app_theme.dart';
 import 'package:mato/models/port_forward.dart';
 import 'package:mato/models/server_metrics.dart';
 import 'package:mato/models/server_profile.dart';
+import 'package:mato/navigation.dart';
 import 'package:mato/screens/root_shell.dart';
 import 'package:mato/screens/scripts_screen.dart';
 import 'package:mato/screens/server_detail_screen.dart';
@@ -329,6 +330,7 @@ class _Harness {
         key: _shotKey,
         child: MaterialApp(
           debugShowCheckedModeBanner: false,
+          navigatorObservers: [routeObserver],
           theme: buildTheme(settings.accentColor, Brightness.light),
           darkTheme: buildTheme(settings.accentColor, Brightness.dark),
           themeMode: mode,
@@ -424,6 +426,41 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));
   });
+
+  for (final save in [false, true]) {
+    testWidgets('從卡片選單編輯伺服器後${save ? '儲存' : '返回'}，首頁恢復輪詢', (tester) async {
+      final harness = _Harness();
+      await tester.runAsync(harness.init);
+      await tester.pumpWidget(harness.wrap(const RootShell()));
+      await _settle(tester);
+
+      await tester.tap(find.byTooltip('更多').first);
+      await _settle(tester);
+      await tester.tap(find.text('編輯'));
+      await _settle(tester);
+      expect(find.byType(ServerFormScreen), findsOneWidget);
+      final paused = harness.ssh.fetchCount;
+      for (var i = 0; i < 4; i++) {
+        await tester.pump(const Duration(seconds: 5));
+      }
+      expect(harness.ssh.fetchCount, paused);
+
+      if (save) {
+        await tester.ensureVisible(find.text('儲存變更'));
+        await tester.pump();
+        await tester.tap(find.text('儲存變更'));
+      } else {
+        await tester.tap(find.byTooltip('返回'));
+      }
+      await _settle(tester);
+      expect(find.byType(ServerFormScreen), findsNothing);
+      await tester.pump(const Duration(seconds: 5));
+      expect(harness.ssh.fetchCount, greaterThan(paused));
+
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
+    });
+  }
 
   for (final entry in _sizes.entries) {
     final label = entry.key;
