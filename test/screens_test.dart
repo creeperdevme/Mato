@@ -377,6 +377,7 @@ Future<void> _loadFonts() async {
     '$material/roboto-bold.ttf',
   ]);
   await load('MaterialIcons', ['$material/materialicons-regular.otf']);
+  await load('ServerSystems', ['assets/fonts/font-logos.ttf']);
   await load('Microsoft JhengHei UI', [
     'C:/Windows/Fonts/msjh.ttc',
     'C:/Windows/Fonts/msjhbd.ttc',

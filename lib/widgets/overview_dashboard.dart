@@ -8,6 +8,7 @@ import '../services/settings_store.dart';
 import '../utils/format.dart';
 import 'common.dart';
 import 'load_chart.dart';
+import 'server_system_icon.dart';
 import 'sparkline.dart';
 import 'usage_ring.dart';
 
@@ -245,7 +246,11 @@ class _HeroCard extends StatelessWidget {
                             color: onHero.withValues(alpha: 0.14),
                           ),
                         ),
-                        child: Icon(Icons.dns_rounded, color: onHero, size: 24),
+                        child: ServerSystemIcon(
+                          osId: summary?.osId ?? '',
+                          osName: summary?.osName ?? '',
+                          color: onHero,
+                        ),
                       ),
                       const SizedBox(width: 14),
                       Expanded(
@@ -1309,7 +1314,10 @@ class _SystemInfoCard extends StatelessWidget {
     ].where((item) => item.isNotEmpty).join(' · ');
     final rows = <Widget>[
       _MetricRow(
-        icon: Icons.laptop_mac,
+        icon: ServerSystem.resolve(
+          osId: metrics.osId,
+          osName: metrics.osName,
+        ).icon,
         label: '作業系統',
         value: metrics.osName.isEmpty ? '未知' : metrics.osName,
       ),

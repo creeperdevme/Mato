@@ -10,6 +10,7 @@ import '../services/settings_store.dart';
 import '../services/terminal_hub.dart';
 import '../utils/format.dart';
 import '../widgets/common.dart';
+import '../widgets/server_system_icon.dart';
 import '../widgets/sparkline.dart';
 import '../widgets/usage_ring.dart';
 import 'lan_scan_screen.dart';
@@ -339,7 +340,11 @@ class _ServerCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _OsBadge(osId: metrics?.osId ?? '', status: monitor.status),
+              _OsBadge(
+                osId: metrics?.osId ?? '',
+                osName: metrics?.osName ?? '',
+                status: monitor.status,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -594,29 +599,21 @@ class _Stat extends StatelessWidget {
 
 /// 依發行版顯示圖示底色，狀態不佳時改成警示色。
 class _OsBadge extends StatelessWidget {
-  const _OsBadge({required this.osId, required this.status});
+  const _OsBadge({
+    required this.osId,
+    required this.osName,
+    required this.status,
+  });
 
   final String osId;
+  final String osName;
   final ServerStatus status;
-
-  static const _colors = {
-    'ubuntu': Color(0xFFE95420),
-    'debian': Color(0xFFA80030),
-    'centos': Color(0xFF932279),
-    'rocky': Color(0xFF10B981),
-    'almalinux': Color(0xFF0F4266),
-    'fedora': Color(0xFF51A2DA),
-    'arch': Color(0xFF1793D1),
-    'alpine': Color(0xFF0D597F),
-    'raspbian': Color(0xFFC51A4A),
-    'opensuse-leap': Color(0xFF73BA25),
-    'opensuse-tumbleweed': Color(0xFF73BA25),
-  };
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final base = _colors[osId] ?? scheme.primary;
+    final system = ServerSystem.resolve(osId: osId, osName: osName);
+    final base = system.color ?? scheme.primary;
     final dim = status == ServerStatus.offline || status == ServerStatus.error;
     final color = dim ? scheme.outline : base;
     return Container(
@@ -626,7 +623,12 @@ class _OsBadge extends StatelessWidget {
         color: color.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Icon(Icons.dns_rounded, color: color, size: 22),
+      child: ServerSystemIcon(
+        osId: osId,
+        osName: osName,
+        color: color,
+        size: 22,
+      ),
     );
   }
 }
