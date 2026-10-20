@@ -107,21 +107,31 @@ jobs:
 
       - name: 設定正式簽章（若有設定 secrets）
         env:
-          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEYSTORE_ALIAS: ${{ secrets.KEYSTORE_ALIAS }}
+          # PKCS12 金鑰庫的金鑰密碼就是金鑰庫密碼；舊式 JKS 兩者不同時才需要另外設定。
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           if [ -z "$KEYSTORE_BASE64" ]; then
-            echo "未設定 ANDROID_KEYSTORE_BASE64，使用 debug 簽章。"
+            echo "::warning::未設定 KEYSTORE_BASE64，使用 debug 簽章。"
             exit 0
           fi
-          echo "$KEYSTORE_BASE64" | base64 -d > android/app/release.jks
+          # 容許 certutil 的 BEGIN／END 行與貼上時夾帶的換行、CRLF。
+          printf '%s' "$KEYSTORE_BASE64" | grep -v -- '-----' | tr -d '\r\n\t ' |
+            base64 -d > android/app/release.jks
+          # secrets 對不上時在這裡就失敗，訊息比 Gradle 的簽章錯誤清楚；
+          # 不退回 debug 簽章，否則產出的 APK 無法覆蓋安裝正式簽章的版本。
+          if ! keytool -list -keystore android/app/release.jks \
+            -storepass "$KEYSTORE_PASSWORD" -alias "$KEYSTORE_ALIAS" > /dev/null; then
+            echo "::error::KEYSTORE_BASE64、KEYSTORE_PASSWORD、KEYSTORE_ALIAS 對不上，請檢查 secrets。"
+            exit 1
+          fi
           cat > android/key.properties <<EOF
           storeFile=release.jks
           storePassword=${KEYSTORE_PASSWORD}
-          keyAlias=${KEY_ALIAS}
-          keyPassword=${KEY_PASSWORD}
+          keyAlias=${KEYSTORE_ALIAS}
+          keyPassword=${KEY_PASSWORD:-$KEYSTORE_PASSWORD}
           EOF
 
       - name: 限制 Gradle 記憶體
