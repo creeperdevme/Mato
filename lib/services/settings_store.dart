@@ -25,9 +25,11 @@ class SftpCommand {
   Map<String, dynamic> toJson() => {'name': name, 'command': command};
 }
 
+const defaultAccentColor = Color(0xFF0B6B3A);
+
 /// 主題色選項。
 const accentColors = <String, Color>{
-  '翠綠': Color(0xFF0B6B3A),
+  '翠綠': defaultAccentColor,
   '海藍': Color(0xFF1565C0),
   '靛紫': Color(0xFF5E35B1),
   '琥珀': Color(0xFFE65100),
@@ -105,7 +107,7 @@ class SettingsStore extends ChangeNotifier {
       ThemeMode.system;
   set themeMode(ThemeMode value) => _set('themeMode', value.name);
 
-  Color get accentColor => Color(_get('accent', 0xFF0B6B3A));
+  Color get accentColor => Color(_get('accent', defaultAccentColor.toARGB32()));
   set accentColor(Color value) => _set('accent', value.toARGB32());
 
   // 終端機 --------------------------------------------------------------------

@@ -8,6 +8,7 @@ import 'app_theme.dart';
 import 'navigation.dart';
 import 'screens/lock_screen.dart';
 import 'screens/root_shell.dart';
+import 'screens/startup_error_screen.dart';
 import 'services/ai_service.dart';
 import 'services/app_lock.dart';
 import 'services/backup_service.dart';
@@ -23,9 +24,28 @@ import 'services/ssh_service.dart';
 import 'services/terminal_hub.dart';
 import 'widgets/ssh_prompts.dart';
 
+/// 讀取本機資料最多等這麼久；外掛卡住時改顯示錯誤畫面，不會一直停在啟動畫面。
+const _loadTimeout = Duration(seconds: 30);
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await _start();
+}
 
+/// 載入本機資料後啟動 App。任何一步失敗（例如儲存外掛只在 release 版丟出例外）
+/// 都改顯示可重試的錯誤畫面，否則 runApp 沒被呼叫，畫面會永遠停在啟動畫面。
+Future<void> _start() async {
+  try {
+    runApp(await _createApp());
+  } catch (error, stackTrace) {
+    debugPrint('Mato 啟動失敗：$error\n$stackTrace');
+    runApp(
+      StartupErrorApp(error: error, stackTrace: stackTrace, onRetry: _start),
+    );
+  }
+}
+
+Future<MatoApp> _createApp() async {
   final settings = SettingsStore();
   final keys = KeyStore();
   final servers = ServerStore(keys: keys);
@@ -39,7 +59,7 @@ Future<void> main() async {
     scripts.load(),
     forwards.load(),
     knownHosts.load(),
-  ]);
+  ], eagerError: true).timeout(_loadTimeout);
   if (!settings.seededScripts) {
     if (scripts.scripts.isEmpty) await scripts.seedExamples();
     settings.seededScripts = true;
@@ -59,18 +79,16 @@ Future<void> main() async {
   final monitor = MonitorService(ssh: ssh, store: servers, settings: settings);
   final lock = AppLockService(settings)..lockOnLaunch();
 
-  runApp(
-    MatoApp(
-      settings: settings,
-      keys: keys,
-      servers: servers,
-      scripts: scripts,
-      forwards: forwards,
-      knownHosts: knownHosts,
-      ssh: ssh,
-      monitor: monitor,
-      lock: lock,
-    ),
+  return MatoApp(
+    settings: settings,
+    keys: keys,
+    servers: servers,
+    scripts: scripts,
+    forwards: forwards,
+    knownHosts: knownHosts,
+    ssh: ssh,
+    monitor: monitor,
+    lock: lock,
   );
 }
 
