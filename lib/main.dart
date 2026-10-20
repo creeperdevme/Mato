@@ -14,6 +14,7 @@ import 'services/ai_service.dart';
 import 'services/app_lock.dart';
 import 'services/backup_service.dart';
 import 'services/docker_service.dart';
+import 'services/home_widget_service.dart';
 import 'services/key_store.dart';
 import 'services/known_hosts_store.dart';
 import 'services/monitor_service.dart';
@@ -84,6 +85,12 @@ Future<MatoApp> _createApp() async {
     };
   final monitor = MonitorService(ssh: ssh, store: servers, settings: settings);
   final lock = AppLockService(settings)..lockOnLaunch();
+  final widgets = HomeWidgetService(
+    monitor: monitor,
+    servers: servers,
+    settings: settings,
+  );
+  await widgets.start();
 
   return MatoApp(
     settings: settings,
@@ -95,6 +102,7 @@ Future<MatoApp> _createApp() async {
     ssh: ssh,
     monitor: monitor,
     lock: lock,
+    widgets: widgets,
   );
 }
 
@@ -110,6 +118,7 @@ class MatoApp extends StatelessWidget {
     required this.ssh,
     required this.monitor,
     required this.lock,
+    required this.widgets,
   });
 
   final SettingsStore settings;
@@ -121,6 +130,7 @@ class MatoApp extends StatelessWidget {
   final SSHService ssh;
   final MonitorService monitor;
   final AppLockService lock;
+  final HomeWidgetService widgets;
 
   @override
   Widget build(BuildContext context) {
@@ -135,6 +145,7 @@ class MatoApp extends StatelessWidget {
         ChangeNotifierProvider.value(value: monitor),
         ChangeNotifierProvider.value(value: lock),
         Provider.value(value: ssh),
+        Provider.value(value: widgets),
         Provider(create: (_) => DockerService(ssh)),
         ChangeNotifierProvider(create: (_) => TerminalHub(ssh)),
         Provider(

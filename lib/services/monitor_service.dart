@@ -44,6 +44,9 @@ class ServerMonitor extends ChangeNotifier {
   final String serverId;
   ServerMetrics? metrics;
   DateTime? updatedAt;
+
+  /// 最後一次更新完成的時間，不論成功或失敗。
+  DateTime? checkedAt;
   String? error;
   ServerStatus status = ServerStatus.unknown;
   String statusMessage = '';
@@ -53,6 +56,7 @@ class ServerMonitor extends ChangeNotifier {
   void _record(ServerMetrics value) {
     metrics = value;
     updatedAt = DateTime.now();
+    checkedAt = updatedAt;
     error = null;
     status = ServerStatus.online;
     statusMessage = 'SSH 連線正常';
@@ -77,26 +81,29 @@ class ServerMonitor extends ChangeNotifier {
   }
 
   void _fail(Object value) {
+    checkedAt = DateTime.now();
     error = describeSshError(value);
     statusMessage = error!;
-    if (isAuthError(value)) {
-      status = ServerStatus.authFailed;
-    } else {
-      final lower = value.toString().toLowerCase();
-      final unreachable = [
-        'timed out',
-        'timeout',
-        'refused',
-        'unreachable',
-        'no route',
-        'host lookup',
-        'errno',
-      ].any(lower.contains);
-      status = unreachable ? ServerStatus.offline : ServerStatus.error;
-    }
+    status = statusForError(value);
   }
 
   void _notify() => notifyListeners();
+}
+
+/// 依取得指標時的錯誤判斷伺服器狀態：驗證失敗、連不上，或其他錯誤。
+ServerStatus statusForError(Object error) {
+  if (isAuthError(error)) return ServerStatus.authFailed;
+  final lower = error.toString().toLowerCase();
+  final unreachable = [
+    'timed out',
+    'timeout',
+    'refused',
+    'unreachable',
+    'no route',
+    'host lookup',
+    'errno',
+  ].any(lower.contains);
+  return unreachable ? ServerStatus.offline : ServerStatus.error;
 }
 
 /// 定期抓取伺服器指標。各畫面以 [watch]／[unwatch] 表達「我正在看這台」，

@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 伺服器總覽的一列。這裡的內容只是示意，OverviewWidget.kt 每次都會重設。 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/row"
+    style="@style/WidgetRow">
+
+    <ImageView
+        android:id="@+id/row_dot"
+        android:layout_width="8dp"
+        android:layout_height="8dp"
+        android:importantForAccessibility="no"
+        android:src="@drawable/widget_dot_online" />
+
+    <TextView
+        android:id="@+id/row_name"
+        style="@style/WidgetText.Name"
+        android:layout_width="0dp"
+        android:layout_marginStart="8dp"
+        android:layout_weight="1"
+        android:text="web-01" />
+
+    <TextView
+        android:id="@+id/row_message"
+        style="@style/WidgetText.Caption"
+        android:layout_marginStart="8dp"
+        android:layout_marginEnd="8dp"
+        android:text="@string/widget_status_offline"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/row_cpu"
+        style="@style/WidgetCell">
+
+        <TextView
+            android:id="@+id/row_cpu_value"
+            style="@style/WidgetText.Value"
+            android:text="42%" />
+
+        <ProgressBar
+            android:id="@+id/row_cpu_bar"
+            style="@style/WidgetBar"
+            android:layout_marginTop="3dp"
+            android:progress="420"
+            android:progressDrawable="@drawable/widget_bar_cpu" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/row_memory"
+        style="@style/WidgetCell">
+
+        <TextView
+            android:id="@+id/row_memory_value"
+            style="@style/WidgetText.Value"
+            android:text="63%" />
+
+        <ProgressBar
+            android:id="@+id/row_memory_bar"
+            style="@style/WidgetBar"
+            android:layout_marginTop="3dp"
+            android:progress="630"
+            android:progressDrawable="@drawable/widget_bar_memory" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/row_disk"
+        style="@style/WidgetCell">
+
+        <TextView
+            android:id="@+id/row_disk_value"
+            style="@style/WidgetText.Value"
+            android:text="78%" />
+
+        <ProgressBar
+            android:id="@+id/row_disk_bar"
+            style="@style/WidgetBar"
+            android:layout_marginTop="3dp"
+            android:progress="780"
+            android:progressDrawable="@drawable/widget_bar_disk" />
+    </LinearLayout>
+</LinearLayout>

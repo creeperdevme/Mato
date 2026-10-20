@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 主畫面小工具的配色：表面與文字取自 App 預設主題色產生的 Material 3 色票
+     （lib/app_theme.dart），狀態與指標色和 lib/widgets/common.dart 一致。 -->
+<resources>
+    <color name="widget_surface">#FFF6FBF3</color>
+    <color name="widget_row">#FFEBEFE8</color>
+    <color name="widget_on_surface">#FF181D18</color>
+    <color name="widget_on_surface_variant">#FF414941</color>
+    <!-- onSurface 的 9%，和 App 的環形圖底色相同。 -->
+    <color name="widget_track">#17181D18</color>
+    <color name="widget_primary">#FF2F6A43</color>
+
+    <color name="widget_status_online">#FF146C2E</color>
+    <color name="widget_status_checking">#FF11468F</color>
+    <color name="widget_status_warning">#FF8A4B00</color>
+    <color name="widget_status_error">#FFB3261E</color>
+    <color name="widget_status_unknown">#FF717971</color>
+
+    <color name="widget_metric_cpu">#FF10B981</color>
+    <color name="widget_metric_memory">#FF3B82F6</color>
+    <color name="widget_metric_disk">#FFA855F7</color>
+    <color name="widget_metric_rx">#FF10B981</color>
+    <color name="widget_metric_tx">#FFF59E0B</color>
+    <!-- 使用率 75% 以上與 90% 以上。 -->
+    <color name="widget_metric_warning">#FFF57C00</color>
+    <color name="widget_metric_critical">#FFE53935</color>
+</resources>

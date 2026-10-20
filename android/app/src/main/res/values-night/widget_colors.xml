@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="widget_surface">#FF101510</color>
+    <color name="widget_row">#FF1C211C</color>
+    <color name="widget_on_surface">#FFDFE4DC</color>
+    <color name="widget_on_surface_variant">#FFC1C9BF</color>
+    <color name="widget_track">#17DFE4DC</color>
+    <color name="widget_primary">#FF96D5A6</color>
+
+    <color name="widget_status_online">#FF7EE2A8</color>
+    <color name="widget_status_checking">#FF9EC6FF</color>
+    <color name="widget_status_warning">#FFFFC470</color>
+    <color name="widget_status_error">#FFFF9E9E</color>
+    <color name="widget_status_unknown">#FF8B938A</color>
+</resources>

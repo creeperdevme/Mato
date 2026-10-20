@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 長條使用率：ProgressBar 設定的 level（0–10000）同時決定長度與顏色。 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@android:id/background">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/widget_track" />
+            <corners android:radius="2dp" />
+        </shape>
+    </item>
+    <item android:id="@android:id/progress">
+        <level-list>
+            <item android:maxLevel="7499">
+                <clip
+                    android:clipOrientation="horizontal"
+                    android:gravity="start">
+                    <shape android:shape="rectangle">
+                        <solid android:color="@color/widget_metric_memory" />
+                        <corners android:radius="2dp" />
+                    </shape>
+                </clip>
+            </item>
+            <item android:maxLevel="8999">
+                <clip
+                    android:clipOrientation="horizontal"
+                    android:gravity="start">
+                    <shape android:shape="rectangle">
+                        <solid android:color="@color/widget_metric_warning" />
+                        <corners android:radius="2dp" />
+                    </shape>
+                </clip>
+            </item>
+            <item android:maxLevel="10000">
+                <clip
+                    android:clipOrientation="horizontal"
+                    android:gravity="start">
+                    <shape android:shape="rectangle">
+                        <solid android:color="@color/widget_metric_critical" />
+                        <corners android:radius="2dp" />
+                    </shape>
+                </clip>
+            </item>
+        </level-list>
+    </item>
+</layer-list>

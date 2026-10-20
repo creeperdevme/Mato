@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 窄的單台伺服器小工具（約 2×2 格）：環形圖放不下，改用長條。預覽與
+     實際內容的關係同 widget_server.xml。 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    style="@style/WidgetContainer"
+    android:orientation="vertical"
+    android:paddingTop="12dp"
+    android:paddingBottom="12dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:id="@+id/status_dot"
+            android:layout_width="8dp"
+            android:layout_height="8dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/widget_dot_online" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/name"
+                style="@style/WidgetText.Title"
+                android:layout_width="match_parent"
+                android:text="web-01" />
+
+            <TextView
+                android:id="@+id/updated"
+                style="@style/WidgetText.Caption"
+                android:layout_width="match_parent"
+                android:layout_marginTop="2dp"
+                android:text="14:32"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <include layout="@layout/widget_refresh_button" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/metrics"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center_vertical"
+        android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            style="@style/WidgetText.Label"
+            android:layout_width="36dp"
+            android:text="@string/widget_cpu" />
+
+        <ProgressBar
+            android:id="@+id/cpu_progress"
+            style="@style/WidgetBar"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:progress="420"
+            android:progressDrawable="@drawable/widget_bar_cpu" />
+
+        <TextView
+            android:id="@+id/cpu_value"
+            style="@style/WidgetText.Value"
+            android:layout_width="34dp"
+            android:gravity="end"
+            android:text="42%" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            style="@style/WidgetText.Label"
+            android:layout_width="36dp"
+            android:text="@string/widget_memory" />
+
+        <ProgressBar
+            android:id="@+id/memory_progress"
+            style="@style/WidgetBar"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:progress="630"
+            android:progressDrawable="@drawable/widget_bar_memory" />
+
+        <TextView
+            android:id="@+id/memory_value"
+            style="@style/WidgetText.Value"
+            android:layout_width="34dp"
+            android:gravity="end"
+            android:text="63%" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            style="@style/WidgetText.Label"
+            android:layout_width="36dp"
+            android:text="@string/widget_disk" />
+
+        <ProgressBar
+            android:id="@+id/disk_progress"
+            style="@style/WidgetBar"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:progress="780"
+            android:progressDrawable="@drawable/widget_bar_disk" />
+
+        <TextView
+            android:id="@+id/disk_value"
+            style="@style/WidgetText.Value"
+            android:layout_width="34dp"
+            android:gravity="end"
+            android:text="78%" />
+    </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/message_box"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/message_icon"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/widget_ic_offline" />
+
+        <TextView
+            android:id="@+id/message"
+            style="@style/WidgetText.Body"
+            android:layout_width="0dp"
+            android:layout_marginStart="10dp"
+            android:layout_weight="1"
+            android:text="@string/widget_status_offline"
+            android:textSize="12sp" />
+    </LinearLayout>
+</LinearLayout>

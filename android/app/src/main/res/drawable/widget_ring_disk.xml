@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 環形使用率：ProgressBar 設定的 level（0–10000）同時決定弧長與顏色。 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@android:id/background">
+        <shape
+            android:shape="ring"
+            android:innerRadiusRatio="2.5"
+            android:thicknessRatio="10"
+            android:useLevel="false">
+            <solid android:color="@color/widget_track" />
+        </shape>
+    </item>
+    <item android:id="@android:id/progress">
+        <rotate
+            android:fromDegrees="270"
+            android:pivotX="50%"
+            android:pivotY="50%"
+            android:toDegrees="270">
+            <level-list>
+                <item android:maxLevel="7499">
+                    <shape
+                        android:shape="ring"
+                        android:innerRadiusRatio="2.5"
+                        android:thicknessRatio="10"
+                        android:useLevel="true">
+                        <solid android:color="@color/widget_metric_disk" />
+                    </shape>
+                </item>
+                <item android:maxLevel="8999">
+                    <shape
+                        android:shape="ring"
+                        android:innerRadiusRatio="2.5"
+                        android:thicknessRatio="10"
+                        android:useLevel="true">
+                        <solid android:color="@color/widget_metric_warning" />
+                    </shape>
+                </item>
+                <item android:maxLevel="10000">
+                    <shape
+                        android:shape="ring"
+                        android:innerRadiusRatio="2.5"
+                        android:thicknessRatio="10"
+                        android:useLevel="true">
+                        <solid android:color="@color/widget_metric_critical" />
+                    </shape>
+                </item>
+            </level-list>
+        </rotate>
+    </item>
+</layer-list>

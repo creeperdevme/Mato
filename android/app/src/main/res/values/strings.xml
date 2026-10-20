@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 主畫面小工具 -->
+    <string name="widget_overview_label">伺服器總覽</string>
+    <string name="widget_overview_description">每台伺服器的狀態與 CPU、記憶體、磁碟用量</string>
+    <string name="widget_overview_title">伺服器</string>
+    <string name="widget_server_label">伺服器狀態</string>
+    <string name="widget_server_description">單台伺服器的 CPU、記憶體、磁碟與網路</string>
+    <string name="widget_refresh">重新整理</string>
+    <string name="widget_updating">更新中…</string>
+    <string name="widget_summary">%1$d/%2$d 台線上</string>
+    <string name="widget_cpu">CPU</string>
+    <string name="widget_memory">記憶體</string>
+    <string name="widget_disk">磁碟</string>
+    <string name="widget_load">負載 %1$s</string>
+    <string name="widget_uptime">已開機 %1$s</string>
+    <string name="widget_status_online">線上</string>
+    <string name="widget_status_checking">連線中</string>
+    <string name="widget_status_offline">離線</string>
+    <string name="widget_status_auth_failed">驗證失敗</string>
+    <string name="widget_status_error">錯誤</string>
+    <string name="widget_status_unknown">尚未更新</string>
+    <string name="widget_not_checked">還沒有這台的資料，點右上角立即更新。</string>
+    <string name="widget_no_servers">開啟 Mato 新增伺服器</string>
+    <string name="widget_choose_server">點一下選擇要顯示的伺服器</string>
+    <string name="widget_server_removed">這台伺服器已刪除，點一下重新選擇</string>
+    <string name="widget_picker_title">選擇要顯示的伺服器</string>
+    <string name="widget_picker_empty_title">還沒有伺服器</string>
+    <string name="widget_picker_empty_message">請先開啟 Mato 新增伺服器，之後點一下小工具就能選擇要顯示哪台。</string>
+    <string name="widget_open_app">開啟 Mato</string>
+    <string name="widget_cancel">取消</string>
+</resources>

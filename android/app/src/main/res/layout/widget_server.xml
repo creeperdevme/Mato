@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 單台伺服器小工具。這裡的文字與數值只用於 Android 12 起小工具選單裡的
+     預覽，實際內容一律由 ServerWidget.kt 設定。 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    style="@style/WidgetContainer"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:id="@+id/status_dot"
+            android:layout_width="8dp"
+            android:layout_height="8dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/widget_dot_online" />
+
+        <TextView
+            android:id="@+id/name"
+            style="@style/WidgetText.Title"
+            android:layout_width="0dp"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:text="web-01" />
+
+        <TextView
+            android:id="@+id/updated"
+            style="@style/WidgetText.Caption"
+            android:layout_marginStart="8dp"
+            android:text="14:32" />
+
+        <include layout="@layout/widget_refresh_button" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/subtitle"
+        style="@style/WidgetText.Caption"
+        android:layout_width="match_parent"
+        android:layout_marginStart="16dp"
+        android:text="Ubuntu 24.04.1 LTS · 已開機 11 天 10 小時" />
+
+    <LinearLayout
+        android:id="@+id/metrics"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <FrameLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content">
+
+            <ProgressBar
+                android:id="@+id/cpu_progress"
+                style="@style/WidgetRing"
+                android:progress="420"
+                android:progressDrawable="@drawable/widget_ring_cpu" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:gravity="center_horizontal"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/cpu_value"
+                    style="@style/WidgetText.Value"
+                    android:text="42%" />
+
+                <TextView
+                    style="@style/WidgetText.Label"
+                    android:layout_marginTop="1dp"
+                    android:text="@string/widget_cpu"
+                    android:textSize="10sp" />
+            </LinearLayout>
+        </FrameLayout>
+
+        <FrameLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp">
+
+            <ProgressBar
+                android:id="@+id/memory_progress"
+                style="@style/WidgetRing"
+                android:progress="630"
+                android:progressDrawable="@drawable/widget_ring_memory" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:gravity="center_horizontal"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/memory_value"
+                    style="@style/WidgetText.Value"
+                    android:text="63%" />
+
+                <TextView
+                    style="@style/WidgetText.Label"
+                    android:layout_marginTop="1dp"
+                    android:text="@string/widget_memory"
+                    android:textSize="10sp" />
+            </LinearLayout>
+        </FrameLayout>
+
+        <FrameLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp">
+
+            <ProgressBar
+                android:id="@+id/disk_progress"
+                style="@style/WidgetRing"
+                android:progress="780"
+                android:progressDrawable="@drawable/widget_ring_disk" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:gravity="center_horizontal"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/disk_value"
+                    style="@style/WidgetText.Value"
+                    android:text="78%" />
+
+                <TextView
+                    style="@style/WidgetText.Label"
+                    android:layout_marginTop="1dp"
+                    android:text="@string/widget_disk"
+                    android:textSize="10sp" />
+            </LinearLayout>
+        </FrameLayout>
+
+        <LinearLayout
+            android:id="@+id/stats"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/rx"
+                style="@style/WidgetText.Stat"
+                android:layout_width="match_parent"
+                android:drawableStart="@drawable/widget_ic_down"
+                android:text="1.2 MB/s" />
+
+            <TextView
+                android:id="@+id/tx"
+                style="@style/WidgetText.Stat"
+                android:layout_width="match_parent"
+                android:drawableStart="@drawable/widget_ic_up"
+                android:text="310 KB/s" />
+
+            <TextView
+                android:id="@+id/load"
+                style="@style/WidgetText.Stat"
+                android:layout_width="match_parent"
+                android:drawableStart="@drawable/widget_ic_load"
+                android:text="負載 1.42" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/message_box"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/message_icon"
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/widget_ic_offline" />
+
+        <TextView
+            android:id="@+id/message"
+            style="@style/WidgetText.Body"
+            android:layout_width="0dp"
+            android:layout_marginStart="10dp"
+            android:layout_weight="1"
+            android:text="@string/widget_status_offline" />
+    </LinearLayout>
+</LinearLayout>

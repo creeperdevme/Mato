@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 小工具最外層。Android 12 起依系統圓角裁切，並以 @android:id/background
+         讓桌面做開啟 App 的轉場動畫。 -->
+    <style name="WidgetContainer">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:background">@drawable/widget_background</item>
+        <item name="android:clipToOutline">true</item>
+        <item name="android:padding">@dimen/widget_padding</item>
+    </style>
+
+    <style name="WidgetText">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/widget_on_surface</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:includeFontPadding">false</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">end</item>
+        <item name="android:fontFeatureSettings">tnum</item>
+    </style>
+
+    <style name="WidgetText.Title">
+        <item name="android:textSize">15sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="WidgetText.Name">
+        <item name="android:fontFamily">sans-serif-medium</item>
+    </style>
+
+    <style name="WidgetText.Caption">
+        <item name="android:textSize">12sp</item>
+        <item name="android:textColor">@color/widget_on_surface_variant</item>
+    </style>
+
+    <!-- 環形圖中央與長條上方的百分比。 -->
+    <style name="WidgetText.Value">
+        <item name="android:textSize">12sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="WidgetText.Label">
+        <item name="android:textSize">11sp</item>
+        <item name="android:textColor">@color/widget_on_surface_variant</item>
+    </style>
+
+    <!-- 帶小圖示的一行數據，例如網路速率。 -->
+    <style name="WidgetText.Stat">
+        <item name="android:textSize">12sp</item>
+        <item name="android:drawablePadding">5dp</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:paddingTop">2dp</item>
+        <item name="android:paddingBottom">2dp</item>
+    </style>
+
+    <style name="WidgetText.Body">
+        <item name="android:textColor">@color/widget_on_surface_variant</item>
+        <item name="android:maxLines">3</item>
+        <item name="android:lineSpacingExtra">2dp</item>
+    </style>
+
+    <!-- 環形與長條的使用率：進度以千分比設定，progressDrawable 依 level 切換
+         顏色（75% 以上轉橘、90% 以上轉紅），和 App 的 MiniRing 一樣。 -->
+    <style name="WidgetRing" parent="@android:style/Widget.ProgressBar.Horizontal">
+        <item name="android:layout_width">@dimen/widget_ring</item>
+        <item name="android:layout_height">@dimen/widget_ring</item>
+        <item name="android:minWidth">@dimen/widget_ring</item>
+        <item name="android:maxWidth">@dimen/widget_ring</item>
+        <item name="android:minHeight">@dimen/widget_ring</item>
+        <item name="android:maxHeight">@dimen/widget_ring</item>
+        <item name="android:max">1000</item>
+        <item name="android:indeterminate">false</item>
+        <item name="android:indeterminateOnly">false</item>
+    </style>
+
+    <style name="WidgetBar" parent="@android:style/Widget.ProgressBar.Horizontal">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">4dp</item>
+        <item name="android:minHeight">4dp</item>
+        <item name="android:maxHeight">4dp</item>
+        <item name="android:max">1000</item>
+        <item name="android:indeterminate">false</item>
+        <item name="android:indeterminateOnly">false</item>
+    </style>
+
+    <!-- 伺服器總覽的一列。 -->
+    <style name="WidgetRow">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">34dp</item>
+        <item name="android:layout_marginTop">4dp</item>
+        <item name="android:background">@drawable/widget_row_background</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:paddingStart">10dp</item>
+        <item name="android:paddingEnd">2dp</item>
+    </style>
+
+    <!-- 列裡的一欄使用率：上方百分比、下方長條。 -->
+    <style name="WidgetCell">
+        <item name="android:layout_width">@dimen/widget_cell</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:gravity">center_horizontal</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:paddingStart">7dp</item>
+        <item name="android:paddingEnd">7dp</item>
+    </style>
+
+    <!-- 選擇伺服器的設定畫面：本身透明，只顯示一個對話框。 -->
+    <style name="WidgetPickerTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="colorPrimary">@color/widget_primary</item>
+        <item name="colorAccent">@color/widget_primary</item>
+        <item name="alertDialogTheme">@style/WidgetPickerDialog</item>
+    </style>
+
+    <style name="WidgetPickerDialog" parent="Theme.AppCompat.DayNight.Dialog.Alert">
+        <item name="colorAccent">@color/widget_primary</item>
+        <item name="android:windowBackground">@drawable/widget_dialog_background</item>
+    </style>
+</resources>

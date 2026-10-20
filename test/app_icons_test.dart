@@ -108,6 +108,39 @@ ${_ledPath(mark, Colors.white)}'''),
 ${_tracePath(mark, MatoBrand.trace, alpha: MatoBrand.unlitTraceAlpha)}
 ${_ledPath(mark, MatoBrand.led, alpha: MatoBrand.unlitLedAlpha)}'''),
   );
+  // 主畫面小工具標題列的小標誌：和 App 內的 MatoLogo 一樣是圓角圖示，只取
+  // 格線中央可見的 72 單位；這麼小的尺寸用精簡版的曲線。
+  const tile = 72.0;
+  final small = MatoMarkGeometry.compact;
+  _write('$res/drawable/widget_logo.xml', '''
+<?xml version="1.0" encoding="utf-8"?>
+<!-- $_generated -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="${_n(tile)}"
+    android:viewportHeight="${_n(tile)}">
+    <path android:pathData="${_roundedSquare(tile, tile * 0.3)}">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="0"
+                android:startY="0"
+                android:endX="${_n(tile)}"
+                android:endY="${_n(tile)}"
+                android:startColor="${_argb(MatoBrand.tileStart)}"
+                android:endColor="${_argb(MatoBrand.tileEnd)}" />
+        </aapt:attr>
+    </path>
+    <group
+        android:translateX="${_n((tile - MatoMarkGeometry.grid) / 2)}"
+        android:translateY="${_n((tile - MatoMarkGeometry.grid) / 2)}">
+${_tracePath(small, MatoBrand.trace)}
+${_ledPath(small, MatoBrand.led)}
+    </group>
+</vector>
+''');
   _write('$res/values/colors.xml', '''
 <?xml version="1.0" encoding="utf-8"?>
 <!-- $_generated -->
@@ -166,6 +199,16 @@ String _ledPath(MatoMarkGeometry mark, Color color, {double alpha = 1}) => '''
     <path
         android:pathData="${_circle(mark.led, mark.ledRadius)}"
         android:fillColor="${_argb(color)}"${alpha < 1 ? '\n        android:fillAlpha="${_n(alpha)}"' : ''} />''';
+
+String _roundedSquare(double size, double radius) {
+  final r = _n(radius);
+  final side = _n(size - radius * 2);
+  return 'M$r,0h$side'
+      'a$r,$r 0 0,1 $r,${r}v$side'
+      'a$r,$r 0 0,1 -$r,${r}h-$side'
+      'a$r,$r 0 0,1 -$r,-${r}v-$side'
+      'a$r,$r 0 0,1 $r,-${r}z';
+}
 
 String _circle(Offset center, double radius) =>
     'M${_n(center.dx - radius)},${_n(center.dy)}'

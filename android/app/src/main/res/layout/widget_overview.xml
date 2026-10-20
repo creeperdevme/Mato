@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 伺服器總覽小工具：每台伺服器一列，由 OverviewWidget.kt 依高度放入
+     widget_overview_row.xml。小工具選單的預覽見 widget_overview_preview.xml。 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    style="@style/WidgetContainer"
+    android:orientation="vertical"
+    android:paddingTop="12dp"
+    android:paddingBottom="10dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/widget_logo" />
+
+        <TextView
+            style="@style/WidgetText.Title"
+            android:layout_marginStart="8dp"
+            android:text="@string/widget_overview_title" />
+
+        <TextView
+            android:id="@+id/summary"
+            style="@style/WidgetText.Caption"
+            android:layout_width="0dp"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:text="2/3 台線上" />
+
+        <TextView
+            android:id="@+id/updated"
+            style="@style/WidgetText.Caption"
+            android:layout_marginStart="8dp"
+            android:text="14:32" />
+
+        <include layout="@layout/widget_refresh_button" />
+    </LinearLayout>
+
+    <!-- 各列數值的欄位名稱，寬度與 widget_overview_row.xml 的欄位一致。 -->
+    <LinearLayout
+        android:id="@+id/columns"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:gravity="end"
+        android:orientation="horizontal"
+        android:paddingEnd="2dp">
+
+        <TextView
+            android:id="@+id/column_cpu"
+            style="@style/WidgetText.Label"
+            android:layout_width="@dimen/widget_cell"
+            android:gravity="center"
+            android:text="@string/widget_cpu" />
+
+        <TextView
+            android:id="@+id/column_memory"
+            style="@style/WidgetText.Label"
+            android:layout_width="@dimen/widget_cell"
+            android:gravity="center"
+            android:text="@string/widget_memory" />
+
+        <TextView
+            android:id="@+id/column_disk"
+            style="@style/WidgetText.Label"
+            android:layout_width="@dimen/widget_cell"
+            android:gravity="center"
+            android:text="@string/widget_disk" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/rows"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical" />
+
+    <LinearLayout
+        android:id="@+id/empty"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <ImageView
+            android:layout_width="26dp"
+            android:layout_height="26dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/widget_ic_server" />
+
+        <TextView
+            style="@style/WidgetText.Body"
+            android:layout_marginTop="6dp"
+            android:gravity="center"
+            android:text="@string/widget_no_servers" />
+    </LinearLayout>
+</LinearLayout>

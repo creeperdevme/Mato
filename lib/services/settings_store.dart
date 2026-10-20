@@ -151,6 +151,10 @@ class SettingsStore extends ChangeNotifier {
   bool get showTemperature => _get('showTemperature', true);
   set showTemperature(bool value) => _set('showTemperature', value);
 
+  /// 沒開 App 時主畫面小工具多久在背景更新一次（分鐘）；0 代表不在背景更新。
+  int get widgetRefreshMinutes => _get('widgetRefresh', 30);
+  set widgetRefreshMinutes(int value) => _set('widgetRefresh', value);
+
   // 安全 ----------------------------------------------------------------------
 
   bool get appLock => _get('appLock', false);

@@ -7,10 +7,13 @@ import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 
 import '../build_info.dart';
+import '../models/server_profile.dart';
 import '../services/ai_service.dart';
 import '../services/app_lock.dart';
 import '../services/backup_service.dart';
+import '../services/home_widget_service.dart';
 import '../services/known_hosts_store.dart';
+import '../services/server_store.dart';
 import '../services/settings_store.dart';
 import '../utils/format.dart';
 import '../widgets/common.dart';
@@ -149,6 +152,10 @@ class SettingsScreen extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (context.read<HomeWidgetService?>()?.supported ?? false) ...[
+                  const _Group('主畫面小工具'),
+                  const _HomeWidgetSettings(),
+                ],
                 const _Group('安全'),
                 const _SecuritySettings(),
                 const _Group('AI 助理'),
@@ -410,6 +417,98 @@ class _TerminalSettings extends StatelessWidget {
               ],
               onChanged: (value) {
                 if (value != null) settings.terminalScrollback = value;
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Android 主畫面小工具：從 App 直接加到桌面，以及沒開 App 時的更新頻率。
+class _HomeWidgetSettings extends StatelessWidget {
+  const _HomeWidgetSettings();
+
+  Future<void> _addServerWidget(BuildContext context) async {
+    final servers = context.read<ServerStore>().servers;
+    if (servers.isEmpty) {
+      showMessage(context, '還沒有伺服器', error: true);
+      return;
+    }
+    final target = servers.length == 1
+        ? servers.first
+        : await showDialog<ServerProfile>(
+            context: context,
+            builder: (dialogContext) => SimpleDialog(
+              title: const Text('要顯示哪台伺服器？'),
+              children: [
+                for (final server in servers)
+                  SimpleDialogOption(
+                    onPressed: () => Navigator.pop(dialogContext, server),
+                    child: ListTile(
+                      title: Text(server.name),
+                      subtitle: Text(server.address),
+                    ),
+                  ),
+              ],
+            ),
+          );
+    if (target == null || !context.mounted) return;
+    await _pin(context, HomeWidgetKind.server, serverId: target.id);
+  }
+
+  Future<void> _pin(
+    BuildContext context,
+    HomeWidgetKind kind, {
+    String? serverId,
+  }) async {
+    final accepted = await context.read<HomeWidgetService>().requestPin(
+      kind,
+      serverId: serverId,
+    );
+    if (!accepted && context.mounted) {
+      showMessage(context, '這個桌面不支援從 App 加入，請長按主畫面空白處，在「小工具」裡找到 Mato。');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = context.watch<SettingsStore>();
+    return SurfaceCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        children: [
+          ListTile(
+            leading: const Icon(Icons.view_agenda_outlined),
+            title: const Text('伺服器總覽'),
+            subtitle: const Text('列出每台伺服器的狀態與用量'),
+            trailing: const Icon(Icons.add_to_home_screen_rounded),
+            onTap: () => _pin(context, HomeWidgetKind.overview),
+          ),
+          ListTile(
+            leading: const Icon(Icons.dns_outlined),
+            title: const Text('伺服器狀態'),
+            subtitle: const Text('單台伺服器的 CPU、記憶體、磁碟與網路'),
+            trailing: const Icon(Icons.add_to_home_screen_rounded),
+            onTap: () => _addServerWidget(context),
+          ),
+          ListTile(
+            leading: const Icon(Icons.update_rounded),
+            title: const Text('背景更新'),
+            subtitle: const Text('沒開 App 時多久連線更新一次'),
+            trailing: DropdownButton<int>(
+              value: settings.widgetRefreshMinutes,
+              underline: const SizedBox.shrink(),
+              items: const [
+                DropdownMenuItem(value: 0, child: Text('不更新')),
+                DropdownMenuItem(value: 15, child: Text('15 分鐘')),
+                DropdownMenuItem(value: 30, child: Text('30 分鐘')),
+                DropdownMenuItem(value: 60, child: Text('1 小時')),
+                DropdownMenuItem(value: 180, child: Text('3 小時')),
+              ],
+              onChanged: (value) {
+                if (value != null) settings.widgetRefreshMinutes = value;
               },
             ),
           ),

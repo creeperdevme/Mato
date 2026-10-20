@@ -1,9 +1,15 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
 
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../services/home_widget_service.dart';
+import '../services/server_store.dart';
 import '../widgets/common.dart';
 import '../widgets/mato_logo.dart';
 import 'home_screen.dart';
 import 'scripts_screen.dart';
+import 'server_actions.dart';
 import 'settings_screen.dart';
 
 /// 最上層：伺服器、腳本、設定。手機用底部導覽列，寬螢幕用側邊欄。
@@ -17,6 +23,41 @@ class RootShell extends StatefulWidget {
 class _RootShellState extends State<RootShell> {
   int _index = 0;
   final _visited = <int>{0};
+  StreamSubscription<String>? _widgetOpens;
+
+  @override
+  void initState() {
+    super.initState();
+    // 點了主畫面小工具上的伺服器：直接打開那台。
+    final widgets = context.read<HomeWidgetService?>();
+    if (widgets == null) return;
+    _widgetOpens = widgets.openRequests.listen(_openFromWidget);
+    final pending = widgets.takePendingOpen();
+    if (pending != null) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _openFromWidget(pending),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _widgetOpens?.cancel();
+    super.dispose();
+  }
+
+  void _openFromWidget(String serverId) {
+    if (!mounted || context.read<ServerStore>().byId(serverId) == null) return;
+    // 已經停在這台的頁面（例如從小工具開過、回桌面後又點一次）就不再疊一層。
+    // popUntil 第一次就回傳 true，只是用來看最上層的路由，不會關掉任何頁面。
+    var current = '';
+    Navigator.of(context).popUntil((route) {
+      current = route.settings.name ?? '';
+      return true;
+    });
+    if (current == serverRouteName(serverId)) return;
+    unawaited(openServer(context, serverId));
+  }
 
   static const _destinations = [
     (Icons.dns_outlined, Icons.dns_rounded, '伺服器'),

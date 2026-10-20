@@ -13,6 +13,9 @@ import '../utils/error_messages.dart';
 import '../widgets/common.dart';
 import 'server_detail_screen.dart';
 
+/// 伺服器頁面的路由名稱，用來判斷畫面上是不是已經開著這台。
+String serverRouteName(String serverId) => '/server/$serverId';
+
 Future<void> openServer(
   BuildContext context,
   String serverId, {
@@ -20,6 +23,7 @@ Future<void> openServer(
 }) {
   return Navigator.of(context).push(
     MaterialPageRoute<void>(
+      settings: RouteSettings(name: serverRouteName(serverId)),
       builder: (_) =>
           ServerDetailScreen(serverId: serverId, initialSection: section),
     ),

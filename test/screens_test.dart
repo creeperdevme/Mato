@@ -25,6 +25,7 @@ import 'package:mato/services/ai_service.dart';
 import 'package:mato/services/app_lock.dart';
 import 'package:mato/services/backup_service.dart';
 import 'package:mato/services/docker_service.dart';
+import 'package:mato/services/home_widget_service.dart';
 import 'package:mato/services/key_store.dart';
 import 'package:mato/services/known_hosts_store.dart';
 import 'package:mato/services/monitor_service.dart';
@@ -228,6 +229,7 @@ class _Harness {
   late final MonitorService monitor;
   late final TerminalHub terminals;
   late final AiHub ai;
+  late final HomeWidgetService widgets;
 
   Future<void> init() async {
     SharedPreferences.setMockInitialValues({});
@@ -266,6 +268,14 @@ class _Harness {
         },
       ], 'end_turn'),
     ];
+    // 設定頁的「主畫面小工具」只在 Android 顯示，這裡當成支援以便一起檢查版面。
+    widgets = HomeWidgetService(
+      monitor: monitor,
+      servers: servers,
+      settings: settings,
+      supported: true,
+      channel: const MethodChannel('test/home_widget'),
+    );
     ai = AiHub(
       ssh: ssh,
       settings: settings,
@@ -313,6 +323,7 @@ class _Harness {
         ChangeNotifierProvider.value(value: monitor),
         ChangeNotifierProvider(create: (_) => AppLockService(settings)),
         Provider<SSHService>.value(value: ssh),
+        Provider.value(value: widgets),
         Provider(create: (_) => DockerService(ssh)),
         ChangeNotifierProvider.value(value: terminals),
         Provider.value(value: ai),

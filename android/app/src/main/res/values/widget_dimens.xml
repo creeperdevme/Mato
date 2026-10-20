@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="widget_radius">22dp</dimen>
+    <dimen name="widget_padding">14dp</dimen>
+    <dimen name="widget_ring">52dp</dimen>
+    <!-- 伺服器總覽每一欄的寬度。 -->
+    <dimen name="widget_cell">46dp</dimen>
+</resources>

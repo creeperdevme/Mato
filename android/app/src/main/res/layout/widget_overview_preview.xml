@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12 起小工具選單裡「伺服器總覽」的預覽，示意資料寫死在這裡。 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    style="@style/WidgetContainer"
+    android:orientation="vertical"
+    android:paddingTop="12dp"
+    android:paddingBottom="10dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/widget_logo" />
+
+        <TextView
+            style="@style/WidgetText.Title"
+            android:layout_marginStart="8dp"
+            android:text="@string/widget_overview_title" />
+
+        <TextView
+            android:id="@+id/summary"
+            style="@style/WidgetText.Caption"
+            android:layout_width="0dp"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:text="2/3 台線上" />
+
+        <TextView
+            android:id="@+id/updated"
+            style="@style/WidgetText.Caption"
+            android:layout_marginStart="8dp"
+            android:text="14:32" />
+
+        <include layout="@layout/widget_refresh_button" />
+    </LinearLayout>
+
+    <!-- 各列數值的欄位名稱，寬度與 widget_overview_row.xml 的欄位一致。 -->
+    <LinearLayout
+        android:id="@+id/columns"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:gravity="end"
+        android:orientation="horizontal"
+        android:paddingEnd="2dp">
+
+        <TextView
+            android:id="@+id/column_cpu"
+            style="@style/WidgetText.Label"
+            android:layout_width="@dimen/widget_cell"
+            android:gravity="center"
+            android:text="@string/widget_cpu" />
+
+        <TextView
+            android:id="@+id/column_memory"
+            style="@style/WidgetText.Label"
+            android:layout_width="@dimen/widget_cell"
+            android:gravity="center"
+            android:text="@string/widget_memory" />
+
+        <TextView
+            android:id="@+id/column_disk"
+            style="@style/WidgetText.Label"
+            android:layout_width="@dimen/widget_cell"
+            android:gravity="center"
+            android:text="@string/widget_disk" />
+    </LinearLayout>
+
+    <LinearLayout
+        style="@style/WidgetRow">
+
+        <ImageView
+            android:layout_width="8dp"
+            android:layout_height="8dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/widget_dot_online" />
+
+        <TextView
+            style="@style/WidgetText.Name"
+            android:layout_width="0dp"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:text="web-01" />
+
+        <LinearLayout
+            style="@style/WidgetCell">
+
+            <TextView
+                style="@style/WidgetText.Value"
+                android:text="42%" />
+
+            <ProgressBar
+                style="@style/WidgetBar"
+                android:layout_marginTop="3dp"
+                android:progress="420"
+                android:progressDrawable="@drawable/widget_bar_cpu" />
+        </LinearLayout>
+
+        <LinearLayout
+            style="@style/WidgetCell">
+
+            <TextView
+                style="@style/WidgetText.Value"
+                android:text="63%" />
+
+            <ProgressBar
+                style="@style/WidgetBar"
+                android:layout_marginTop="3dp"
+                android:progress="630"
+                android:progressDrawable="@drawable/widget_bar_memory" />
+        </LinearLayout>
+
+        <LinearLayout
+            style="@style/WidgetCell">
+
+            <TextView
+                style="@style/WidgetText.Value"
+                android:text="78%" />
+
+            <ProgressBar
+                style="@style/WidgetBar"
+                android:layout_marginTop="3dp"
+                android:progress="780"
+                android:progressDrawable="@drawable/widget_bar_disk" />
+        </LinearLayout>
+    </LinearLayout>
+    <LinearLayout
+        style="@style/WidgetRow">
+
+        <ImageView
+            android:layout_width="8dp"
+            android:layout_height="8dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/widget_dot_online" />
+
+        <TextView
+            style="@style/WidgetText.Name"
+            android:layout_width="0dp"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:text="db-primary" />
+
+        <LinearLayout
+            style="@style/WidgetCell">
+
+            <TextView
+                style="@style/WidgetText.Value"
+                android:text="8%" />
+
+            <ProgressBar
+                style="@style/WidgetBar"
+                android:layout_marginTop="3dp"
+                android:progress="80"
+                android:progressDrawable="@drawable/widget_bar_cpu" />
+        </LinearLayout>
+
+        <LinearLayout
+            style="@style/WidgetCell">
+
+            <TextView
+                style="@style/WidgetText.Value"
+                android:text="81%" />
+
+            <ProgressBar
+                style="@style/WidgetBar"
+                android:layout_marginTop="3dp"
+                android:progress="810"
+                android:progressDrawable="@drawable/widget_bar_memory" />
+        </LinearLayout>
+
+        <LinearLayout
+            style="@style/WidgetCell">
+
+            <TextView
+                style="@style/WidgetText.Value"
+                android:text="55%" />
+
+            <ProgressBar
+                style="@style/WidgetBar"
+                android:layout_marginTop="3dp"
+                android:progress="550"
+                android:progressDrawable="@drawable/widget_bar_disk" />
+        </LinearLayout>
+    </LinearLayout>
+    <LinearLayout
+        style="@style/WidgetRow">
+
+        <ImageView
+            android:layout_width="8dp"
+            android:layout_height="8dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/widget_dot_error" />
+
+        <TextView
+            style="@style/WidgetText.Name"
+            android:layout_width="0dp"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:text="家用 NAS" />
+
+        <TextView
+            style="@style/WidgetText.Caption"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp"
+            android:text="離線" />
+    </LinearLayout>
+</LinearLayout>
