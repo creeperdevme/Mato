@@ -3,7 +3,11 @@ import 'dart:io' show Platform;
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart'
+    show BoxHitTestResult, RenderProxyBox;
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:xterm/xterm.dart';
@@ -19,14 +23,27 @@ import '../utils/shell.dart';
 import '../widgets/common.dart';
 import '../widgets/terminal_themes.dart';
 
-bool get _isDesktop =>
-    Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+/// 是否為桌面平台（桌面吃硬體鍵盤事件，手機／平板吃軟體鍵盤）。
+///
+/// 用 [defaultTargetPlatform] 而不是 `dart:io` 的 `Platform`：測試可以用
+/// `debugDefaultTargetPlatformOverride` 模擬 iOS／Android 驗證手機行為。
+bool get _isDesktop => switch (defaultTargetPlatform) {
+  TargetPlatform.windows || TargetPlatform.linux || TargetPlatform.macOS =>
+    true,
+  _ => false,
+};
 
 /// 互動式 SSH 終端機：多分頁、特殊鍵列、片段、ZMODEM 檔案傳輸。
 ///
-/// 桌面平台（Windows／Linux／macOS）改用 `hardwareKeyboardOnly` 直接接收硬體
-/// 鍵盤事件：預設的文字輸入連線（IME）在桌面上常常拿不到焦點，會出現「畫
-/// 面看得到、卻打不了字」的情況。需要輸入中文時可用「多行輸入」。
+/// 所有平台都走 xterm 的文字輸入連線（IME），桌面的注音／拼音等輸入法
+/// 才能直接打進終端機。xterm 只在使用者「點擊」取得焦點時才會自行開啟
+/// 輸入連線（keyboard token），程式化聚焦（開新分頁、貼上、切分頁…）後
+/// 得補呼叫 [TerminalViewState.requestKeyboard]，否則會「看得到、打不了字」。
+///
+/// 觸控裝置另有「選取模式」：xterm 內建手勢層的拖曳選字只支援滑鼠，
+/// 手指拖曳會被捲動搶走，因此選取模式下封鎖內層所有指標事件，
+/// 改由外層手勢直接驅動選字。手機的軟鍵盤刪除鍵也要靠 deleteDetection
+/// 才收得到（見 [TerminalView.deleteDetection]）。
 class TerminalScreen extends StatefulWidget {
   const TerminalScreen({super.key, required this.profile, this.onAskAi});
 
@@ -44,6 +61,12 @@ class _TerminalScreenState extends State<TerminalScreen> {
   late final TerminalHub _hub;
   String? _activeId;
   bool? _showKeys;
+  bool _selectMode = false;
+
+  /// 目前終端機的 [TerminalViewState]：程式化聚焦後要靠它補開輸入連線，
+  /// 選取模式也要靠它拿到 [RenderTerminal] 來驅動選字。
+  TerminalViewState? get _viewState =>
+      _focusNode.context?.findAncestorStateOfType<TerminalViewState>();
 
   @override
   void initState() {
@@ -98,7 +121,15 @@ class _TerminalScreenState extends State<TerminalScreen> {
 
   void _focus() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _focusNode.canRequestFocus) _focusNode.requestFocus();
+      if (!mounted) return;
+      _focusNode.requestFocus();
+      // 焦點到位後補開文字輸入連線：xterm 只會在使用者點擊取得焦點時自行
+      // 開啟，程式化聚焦若不補開，桌面 IME（注音等）與一般打字都沒有反應。
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _focusNode.hasFocus) {
+          _viewState?.requestKeyboard();
+        }
+      });
     });
   }
 
@@ -381,6 +412,106 @@ class _TerminalScreenState extends State<TerminalScreen> {
     setState(() => _activeId = remaining.isEmpty ? null : remaining.last.id);
   }
 
+  // 選取模式 -------------------------------------------------------------------
+
+  void _exitSelectMode() => setState(() => _selectMode = false);
+
+  Offset? _dragOrigin;
+  Offset? _longPressOrigin;
+
+  /// 拖曳逐字選取（與桌面終端機用滑鼠拖曳選字相同）。
+  void _selectCharacters(TerminalSession session, Offset from, [Offset? to]) {
+    _withRenderTerminal((render) {
+      render.selectCharacters(
+        render.globalToLocal(from),
+        to == null ? null : render.globalToLocal(to),
+      );
+      _widenWideCharSelection(session);
+    });
+  }
+
+  /// 長按以單字為單位選取。
+  void _selectWord(TerminalSession session, Offset from, [Offset? to]) {
+    _withRenderTerminal((render) {
+      render.selectWord(
+        render.globalToLocal(from),
+        to == null ? null : render.globalToLocal(to),
+      );
+      _widenWideCharSelection(session);
+    });
+  }
+
+  /// xterm 的字邊界遇到寬字元（中文字佔 2 格）只會選到前半格，取出的文字
+  /// 會是空字串，長按中文字於是「選不到」。補一層：把選取範圍延伸到蓋住
+  /// 整個寬字元，起點落在後半格時也退回字元起點。
+  void _widenWideCharSelection(TerminalSession session) {
+    final controller = session.controller;
+    final selection = controller.selection;
+    if (selection == null) return;
+    final range = selection.normalized;
+    final begin = range.begin;
+    final end = range.end;
+    if (begin.y != end.y) return; // 跨行選取本來就會包含整行，不必修。
+    final buffer = session.terminal.buffer;
+    if (begin.y < 0 || begin.y >= buffer.lines.length) return;
+    final line = buffer.lines[begin.y];
+
+    var beginX = begin.x;
+    // 起點在寬字元的後半格：退回字元起點。
+    if (beginX > 0 && line.getWidth(beginX) == 0 &&
+        line.getWidth(beginX - 1) == 2) {
+      beginX--;
+    }
+    // 結尾只蓋到寬字元的前半格：延伸到後半格之後。
+    var endX = end.x;
+    for (var x = beginX; x < endX && x < line.length; x++) {
+      if (line.getWidth(x) == 2) {
+        endX = endX < x + 2 ? x + 2 : endX;
+      }
+    }
+    if (beginX == begin.x && endX == end.x) return;
+    controller.setSelection(
+      buffer.createAnchorFromOffset(CellOffset(beginX, begin.y)),
+      buffer.createAnchorFromOffset(CellOffset(endX, begin.y)),
+      mode: SelectionMode.line,
+    );
+  }
+
+  /// [RenderTerminal] 的型別未從 xterm 匯出，用回呼取得即可，
+  /// 不需要（也不能）在這裡寫出它的型別名稱。
+  void _withRenderTerminal(void Function(dynamic render) action) {
+    final state = _viewState;
+    if (state == null || !state.mounted) return;
+    try {
+      action(state.renderTerminal);
+    } catch (error) {
+      // 畫面還沒建好（或少見的過渡狀態）就略過這次選取。
+      debugPrint('終端機選取失敗：$error');
+    }
+  }
+
+  /// 選取模式下接管整個終端機畫面的手勢：封鎖內層（含捲動與滑鼠回報）
+  /// 的指標事件後，用外層手勢直接選字。
+  Widget _wrapSelectionMode(TerminalSession session, Widget child) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => session.controller.clearSelection(),
+      onLongPressStart: (details) {
+        _longPressOrigin = details.globalPosition;
+        _selectWord(session, details.globalPosition);
+      },
+      onLongPressMoveUpdate: (details) =>
+          _selectWord(session, _longPressOrigin!, details.globalPosition),
+      onPanStart: (details) {
+        _dragOrigin = details.globalPosition;
+        _selectCharacters(session, details.globalPosition);
+      },
+      onPanUpdate: (details) =>
+          _selectCharacters(session, _dragOrigin!, details.globalPosition),
+      child: _SelectionBlocker(child: child),
+    );
+  }
+
   void _showContextMenu(TerminalSession session, Offset position) {
     final hasSelection = session.selectedText != null;
     showMenu<String>(
@@ -472,6 +603,13 @@ class _TerminalScreenState extends State<TerminalScreen> {
           actions: active == null
               ? const []
               : [
+                  _ToolButton(
+                    icon: Icons.highlight_alt_outlined,
+                    tooltip: '選取模式（拖曳或長按選取文字）',
+                    selected: _selectMode,
+                    onPressed: () =>
+                        setState(() => _selectMode = !_selectMode),
+                  ),
                   _ToolButton(
                     icon: Icons.content_paste_rounded,
                     tooltip: _isDesktop ? '貼上（Ctrl+Shift+V）' : '貼上',
@@ -589,6 +727,15 @@ class _TerminalScreenState extends State<TerminalScreen> {
                   ),
                 ],
         ),
+        if (_selectMode && active != null)
+          _SelectionBanner(
+            session: active,
+            onCopy: () {
+              _copy(active);
+              _exitSelectMode();
+            },
+            onExit: _exitSelectMode,
+          ),
         Expanded(
           child: active == null
               ? EmptyState(
@@ -602,61 +749,69 @@ class _TerminalScreenState extends State<TerminalScreen> {
                 )
               : ListenableBuilder(
                   listenable: active,
-                  builder: (context, _) => Stack(
-                    children: [
-                      Positioned.fill(
-                        child: ColoredBox(
-                          color: palette.theme.background,
-                          child: TerminalView(
-                            active.terminal,
-                            key: ValueKey(active.id),
-                            controller: active.controller,
-                            focusNode: _focusNode,
-                            autofocus: true,
-                            hardwareKeyboardOnly: _isDesktop,
-                            padding: const EdgeInsets.all(8),
-                            theme: palette.theme,
-                            keyboardAppearance: palette.light
-                                ? Brightness.light
-                                : Brightness.dark,
-                            cursorType: switch (settings.terminalCursor) {
-                              TerminalCursorStyle.block =>
-                                TerminalCursorType.block,
-                              TerminalCursorStyle.underline =>
-                                TerminalCursorType.underline,
-                              TerminalCursorStyle.bar =>
-                                TerminalCursorType.verticalBar,
-                            },
-                            textStyle: TerminalStyle(
-                              fontSize: settings.terminalFontSize,
-                              fontFamily: settings.terminalFontFamily.isEmpty
-                                  ? monoFonts.first
-                                  : settings.terminalFontFamily,
-                              fontFamilyFallback: monoFonts,
-                            ),
-                            shortcuts: _shortcuts,
-                            onSecondaryTapDown: (details, _) =>
-                                _showContextMenu(
-                                  active,
-                                  details.globalPosition,
-                                ),
-                          ),
-                        ),
+                  builder: (context, _) {
+                    final view = TerminalView(
+                      active.terminal,
+                      key: ValueKey(active.id),
+                      controller: active.controller,
+                      focusNode: _focusNode,
+                      autofocus: true,
+                      // 手機軟鍵盤的刪除鍵只會回報「文字變短」，不會發出硬體
+                      // 刪除事件，要靠 xterm 的 deleteDetection 才刪得掉（桌面
+                      // 走硬體事件，開了反而會刪兩次）。
+                      deleteDetection: !_isDesktop,
+                      padding: const EdgeInsets.all(8),
+                      theme: palette.theme,
+                      keyboardAppearance: palette.light
+                          ? Brightness.light
+                          : Brightness.dark,
+                      cursorType: switch (settings.terminalCursor) {
+                        TerminalCursorStyle.block =>
+                          TerminalCursorType.block,
+                        TerminalCursorStyle.underline =>
+                          TerminalCursorType.underline,
+                        TerminalCursorStyle.bar =>
+                          TerminalCursorType.verticalBar,
+                      },
+                      textStyle: TerminalStyle(
+                        fontSize: settings.terminalFontSize,
+                        fontFamily: settings.terminalFontFamily.isEmpty
+                            ? monoFonts.first
+                            : settings.terminalFontFamily,
+                        fontFamilyFallback: monoFonts,
                       ),
-                      if (active.state != TerminalSessionState.connected)
-                        Positioned(
-                          left: 12,
-                          right: 12,
-                          bottom: 12,
-                          child: _StatusBanner(
-                            session: active,
-                            onRetry: () =>
-                                _hub.reconnect(active, widget.profile),
-                            onClose: () => _close(active),
+                      shortcuts: _shortcuts,
+                      onSecondaryTapDown: (details, _) =>
+                          _showContextMenu(
+                            active,
+                            details.globalPosition,
+                          ),
+                    );
+                    return Stack(
+                      children: [
+                        Positioned.fill(
+                          child: ColoredBox(
+                            color: palette.theme.background,
+                            child: _selectMode
+                                ? _wrapSelectionMode(active, view)
+                                : view,
                           ),
                         ),
-                    ],
-                  ),
+                        if (active.state != TerminalSessionState.connected)
+                          Positioned(
+                            left: 12,
+                            right: 12,
+                            bottom: 12,
+                            child: _StatusBanner(
+                              session: active,
+                              onRetry: () =>
+                                  _hub.reconnect(active, widget.profile),
+                              onClose: () => _close(active),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
                 ),
         ),
         if (active != null && showKeys)
@@ -859,22 +1014,110 @@ class _ToolButton extends StatelessWidget {
     required this.icon,
     required this.tooltip,
     this.onPressed,
+    this.selected = false,
   });
 
   final IconData icon;
   final String tooltip;
   final VoidCallback? onPressed;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return IconButton(
       tooltip: tooltip,
       visualDensity: VisualDensity.compact,
       iconSize: 20,
+      style: selected
+          ? IconButton.styleFrom(
+              foregroundColor: scheme.primary,
+              backgroundColor: scheme.primaryContainer,
+            )
+          : null,
       onPressed: onPressed,
       icon: Icon(icon),
     );
   }
+}
+
+/// 選取模式的提示列：說明操作方式，並提供「複製」與離開按鈕。
+class _SelectionBanner extends StatelessWidget {
+  const _SelectionBanner({
+    required this.session,
+    required this.onCopy,
+    required this.onExit,
+  });
+
+  final TerminalSession session;
+  final VoidCallback onCopy;
+  final VoidCallback onExit;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Material(
+      color: scheme.secondaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 2, 4, 2),
+        child: Row(
+          children: [
+            Icon(
+              Icons.highlight_alt_rounded,
+              size: 18,
+              color: scheme.onSecondaryContainer,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '選取模式：拖曳或長按選取文字，點一下清除',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: scheme.onSecondaryContainer,
+                ),
+              ),
+            ),
+            ListenableBuilder(
+              listenable: session.controller,
+              builder: (context, _) => TextButton.icon(
+                onPressed: session.controller.selection == null
+                    ? null
+                    : onCopy,
+                icon: const Icon(Icons.copy_rounded, size: 16),
+                label: const Text('複製'),
+              ),
+            ),
+            IconButton(
+              tooltip: '離開選取模式',
+              visualDensity: VisualDensity.compact,
+              iconSize: 18,
+              onPressed: onExit,
+              icon: const Icon(Icons.close_rounded),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 選取模式用：讓底下的終端機（含其捲動、滑鼠回報與鍵盤請求）收不到任何
+/// 指標事件，手勢全由外層的 [GestureDetector] 接管；沒有競爭對手，手指
+/// 拖曳就能選字，不會被捲動搶走。
+class _SelectionBlocker extends SingleChildRenderObjectWidget {
+  const _SelectionBlocker({required super.child});
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderSelectionBlocker();
+}
+
+class _RenderSelectionBlocker extends RenderProxyBox {
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
+      false;
 }
 
 class _StatusBanner extends StatelessWidget {
@@ -973,6 +1216,13 @@ class _ExtraKeys extends StatelessWidget {
       _KeyButton(
         label: 'TAB',
         onTap: () => _tap(() => session.sendKey(TerminalKey.tab)),
+      ),
+      // 軟鍵盤收起來（或刪除鍵失效）時仍刪得掉，長按可連續刪除。
+      _KeyButton(
+        icon: Icons.backspace_outlined,
+        tooltip: '刪除鍵（Backspace）',
+        repeat: true,
+        onTap: () => _tap(() => session.sendKey(TerminalKey.backspace)),
       ),
       _KeyButton(
         label: 'CTRL',
