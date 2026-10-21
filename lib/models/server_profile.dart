@@ -59,6 +59,7 @@ class ServerProfile {
     this.wolBroadcast = '',
     this.wolPort = 9,
     this.notes = '',
+    this.iconName = '',
     required this.createdAt,
     this.password = '',
     this.privateKey = '',
@@ -96,6 +97,7 @@ class ServerProfile {
       wolBroadcast: json['wolBroadcast'] as String? ?? '',
       wolPort: json['wolPort'] as int? ?? 9,
       notes: json['notes'] as String? ?? '',
+      iconName: json['iconName'] as String? ?? '',
       createdAt:
           DateTime.tryParse(json['createdAt'] as String? ?? '') ??
           DateTime.now(),
@@ -135,6 +137,10 @@ class ServerProfile {
   final String wolBroadcast;
   final int wolPort;
   final String notes;
+
+  /// 自訂圖示的檔名（見 [ServerStore] 的圖示儲存區）；空字串代表用系統圖示。
+  final String iconName;
+
   final DateTime createdAt;
 
   final String password;
@@ -167,6 +173,7 @@ class ServerProfile {
     'wolBroadcast': wolBroadcast,
     'wolPort': wolPort,
     'notes': notes,
+    if (iconName.isNotEmpty) 'iconName': iconName,
     'createdAt': createdAt.toIso8601String(),
   };
 
@@ -214,6 +221,7 @@ class ServerProfile {
     String? wolBroadcast,
     int? wolPort,
     String? notes,
+    String? iconName,
     DateTime? createdAt,
     String? password,
     String? privateKey,
@@ -241,6 +249,7 @@ class ServerProfile {
       wolBroadcast: wolBroadcast ?? this.wolBroadcast,
       wolPort: wolPort ?? this.wolPort,
       notes: notes ?? this.notes,
+      iconName: iconName ?? this.iconName,
       createdAt: createdAt ?? this.createdAt,
       password: password ?? this.password,
       privateKey: privateKey ?? this.privateKey,

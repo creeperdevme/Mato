@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/server_metrics.dart';
 import '../models/server_profile.dart';
 import '../services/monitor_service.dart';
+import '../services/server_store.dart';
 import '../services/settings_store.dart';
 import '../utils/format.dart';
 import 'common.dart';
@@ -246,11 +247,7 @@ class _HeroCard extends StatelessWidget {
                             color: onHero.withValues(alpha: 0.14),
                           ),
                         ),
-                        child: ServerSystemIcon(
-                          osId: summary?.osId ?? '',
-                          osName: summary?.osName ?? '',
-                          color: onHero,
-                        ),
+                        child: _badgeContent(context, onHero),
                       ),
                       const SizedBox(width: 14),
                       Expanded(
@@ -345,6 +342,24 @@ class _HeroCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  /// 摘要卡左上角的圖示塊：有自訂圖片就顯示圖片，否則顯示系統圖示。
+  Widget _badgeContent(BuildContext context, Color onHero) {
+    final custom = context
+        .read<ServerStore>()
+        .iconPathOf(profile.iconName);
+    if (custom != null) {
+      return ServerCustomImage(
+        path: custom,
+        borderRadius: BorderRadius.circular(13),
+      );
+    }
+    return ServerSystemIcon(
+      osId: monitor.metrics?.osId ?? '',
+      osName: monitor.metrics?.osName ?? '',
+      color: onHero,
     );
   }
 }

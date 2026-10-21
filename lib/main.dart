@@ -63,6 +63,8 @@ Future<MatoApp> _createApp() async {
     settings.load(),
     keys.load(),
     servers.load(),
+    // 自訂圖示的儲存區要在啟動時（真實 async 環境）建立，不能放在 load() 裡。
+    servers.initIconStorage(),
     scripts.load(),
     forwards.load(),
     knownHosts.load(),

@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -9,6 +10,7 @@ import '../services/server_store.dart';
 import '../services/ssh_service.dart';
 import '../utils/error_messages.dart';
 import '../widgets/common.dart';
+import '../widgets/server_system_icon.dart';
 import 'keys_screen.dart';
 
 class ServerFormScreen extends StatefulWidget {
@@ -61,6 +63,10 @@ class _ServerFormScreenState extends State<ServerFormScreen> {
   bool _saving = false;
   bool _testing = false;
 
+  /// 自訂圖示在儲存區裡的檔名（空字串代表用系統圖示）。
+  String _iconName = '';
+  bool _iconBusy = false;
+
   bool get _editing => widget.server != null;
 
   @override
@@ -96,6 +102,7 @@ class _ServerFormScreenState extends State<ServerFormScreen> {
     _useProxy = server?.proxy != null;
     _sessionMode = server?.sessionMode ?? SessionMode.shell;
     _agentForwarding = server?.agentForwarding ?? false;
+    _iconName = server?.iconName ?? '';
     if (server != null) {
       context.read<ServerStore>().getPassword(server.id).then((value) {
         if (mounted) {
@@ -176,6 +183,7 @@ class _ServerFormScreenState extends State<ServerFormScreen> {
       wolBroadcast: _broadcast.text.trim(),
       wolPort: int.tryParse(_wolPort.text.trim()) ?? 9,
       notes: _notes.text.trim(),
+      iconName: _iconName,
     );
   }
 
@@ -309,6 +317,36 @@ class _ServerFormScreenState extends State<ServerFormScreen> {
     if (selected != null && mounted) setState(() => _keyId = selected);
   }
 
+  // 自訂圖示 -------------------------------------------------------------------
+
+  Future<void> _pickIcon() async {
+    if (_iconBusy) return;
+    setState(() => _iconBusy = true);
+    try {
+      final file = await FilePicker.pickFile(
+        dialogTitle: '選擇伺服器自訂圖示',
+        type: FileType.image,
+        compressionQuality: 40,
+      );
+      if (file == null) return;
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty || !mounted) return;
+      // 先寫進儲存區（未儲存前不動舊檔；取消編輯時孤兒檔會在下次啟動清理）。
+      final name = await context
+          .read<ServerStore>()
+          .writeIcon(bytes, extension: file.extension ?? '');
+      if (mounted) setState(() => _iconName = name);
+    } catch (error) {
+      if (mounted) {
+        showMessage(context, '無法使用這張圖片：$error', error: true);
+      }
+    } finally {
+      if (mounted) setState(() => _iconBusy = false);
+    }
+  }
+
+  void _removeIcon() => setState(() => _iconName = '');
+
   @override
   Widget build(BuildContext context) {
     final store = context.watch<ServerStore>();
@@ -414,6 +452,12 @@ class _ServerFormScreenState extends State<ServerFormScreen> {
                               : null,
                         ),
                         _GroupField(controller: _group, groups: store.groups),
+                        _IconField(
+                          path: store.iconPathOf(_iconName),
+                          busy: _iconBusy,
+                          onPick: _pickIcon,
+                          onRemove: _iconName.isEmpty ? null : _removeIcon,
+                        ),
                       ],
                     ),
                     _Section(
@@ -871,9 +915,105 @@ class _Section extends StatelessWidget {
   }
 }
 
+/// 自訂圖示：左邊預覽、右邊說明與「選擇圖片／更換圖片」「移除」按鈕。
+class _IconField extends StatelessWidget {
+  const _IconField({
+    required this.path,
+    required this.busy,
+    required this.onPick,
+    this.onRemove,
+  });
+
+  /// 完整路徑；null 代表目前沒有自訂圖示。
+  final String? path;
+  final bool busy;
+  final VoidCallback onPick;
+  final VoidCallback? onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 64,
+          height: 64,
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerHighest.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: scheme.outlineVariant),
+          ),
+          child: path == null
+              ? busy
+                    ? const Center(
+                        child: SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    : Icon(
+                        Icons.add_photo_alternate_outlined,
+                        size: 30,
+                        color: scheme.onSurfaceVariant,
+                      )
+              : ClipRRect(
+                  borderRadius: BorderRadius.circular(15),
+                  child: ServerCustomImage(
+                    path: path!,
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('自訂圖示（選填）', style: theme.textTheme.labelLarge),
+              const SizedBox(height: 2),
+              Text(
+                '顯示在伺服器卡片與總覽頁，會取代系統發行版圖示',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: busy ? null : onPick,
+                    icon: busy
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.image_outlined, size: 18),
+                    label: Text(path == null ? '選擇圖片' : '更換圖片'),
+                  ),
+                  if (onRemove != null)
+                    TextButton.icon(
+                      onPressed: onRemove,
+                      icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                      label: const Text('移除'),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _GroupField extends StatefulWidget {
   const _GroupField({required this.controller, required this.groups});
-
   final TextEditingController controller;
   final List<String> groups;
 

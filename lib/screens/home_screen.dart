@@ -344,6 +344,9 @@ class _ServerCard extends StatelessWidget {
                 osId: metrics?.osId ?? '',
                 osName: metrics?.osName ?? '',
                 status: monitor.status,
+                iconPath: context
+                    .read<ServerStore>()
+                    .iconPathOf(server.iconName),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -598,20 +601,34 @@ class _Stat extends StatelessWidget {
 }
 
 /// 依發行版顯示圖示底色，狀態不佳時改成警示色。
+/// 有自訂圖片（[iconPath]）時直接顯示圖片取代系統圖示。
 class _OsBadge extends StatelessWidget {
   const _OsBadge({
     required this.osId,
     required this.osName,
     required this.status,
+    this.iconPath,
   });
 
   final String osId;
   final String osName;
   final ServerStatus status;
+  final String? iconPath;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final custom = iconPath;
+    if (custom != null) {
+      return SizedBox(
+        width: 40,
+        height: 40,
+        child: ServerCustomImage(
+          path: custom,
+          borderRadius: BorderRadius.circular(12),
+        ),
+      );
+    }
     final system = ServerSystem.resolve(osId: osId, osName: osName);
     final base = system.color ?? scheme.primary;
     final dim = status == ServerStatus.offline || status == ServerStatus.error;

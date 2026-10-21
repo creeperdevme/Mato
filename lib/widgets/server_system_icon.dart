@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 /// Bundled Font Logos glyphs; keep IconData constant for release tree shaking.
@@ -177,6 +179,31 @@ class ServerSystemIcon extends StatelessWidget {
       size: size,
       color: color,
       semanticLabel: osName.trim().isEmpty ? system.label : osName.trim(),
+    );
+  }
+}
+
+/// 顯示使用者自訂的伺服器圖片：填滿整個圓角方塊（取代系統圖示）。
+/// 檔案讀不到（被刪掉、備份搬機器）時顯示空塊，版面不會跑掉。
+class ServerCustomImage extends StatelessWidget {
+  const ServerCustomImage({
+    super.key,
+    required this.path,
+    required this.borderRadius,
+  });
+
+  final String path;
+  final BorderRadius borderRadius;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: borderRadius,
+      child: Image.file(
+        File(path),
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => const SizedBox.expand(),
+      ),
     );
   }
 }
